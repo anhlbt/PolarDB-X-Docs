@@ -1,39 +1,39 @@
-调优基本概念 
+Tuning Basic Concepts
 ===========================
 
-分布式数据库相对单机数据库架构有差异，所以在单机数据库的调优经验上分布式数据库又有着自身特点的调优手段。在使用PolarDB-X的过程中，我们会基于统计信息、执行计划和并发策略和执行之后反馈的运行时长等信息，找出导致SQL执行慢的原因，针对性调优。
+Distributed databases are different from stand-alone database architectures, so distributed databases have their own tuning methods in terms of stand-alone database tuning experience. In the process of using PolarDB-X, we will find out the cause of slow SQL execution based on statistical information, execution plan and concurrency strategy, and the running time feedback after execution, and perform targeted tuning.
 
-基本架构 
+basic structure
 -------------------------
 
-PolarDB-X是一款计算存储分离的分布式数据库产品。当一条查询SQL（称为逻辑SQL）发往PolarDB-X计算节点(CN)时，PolarDB-X会将其分成可下推的、和不可下推的两部分，可下推的部分也被称为物理SQL。不可下推的SQL在CN上执行，下推的SQL在DN上执行。
+PolarDB-X is a distributed database product that separates computing and storage. When a query SQL (called logical SQL) is sent to the PolarDB-X computing node (CN), PolarDB-X will divide it into two parts that can be pushed down and those that cannot be pushed down. The part that can be pushed down is also called for physical SQL. SQL that cannot be pushed down is executed on the CN, and SQL that is pushed down is executed on the DN.
 
-![基本架构](../images/p332458.png)
+![Basic Architecture](../images/p332458.png)
 
-原则上，PolarDB-X在查询优化过程中尽可能按照以下规则做执行优化：
+In principle, PolarDB-X performs execution optimization according to the following rules as much as possible during the query optimization process:
 
-* 尽可能将用户SQL下推到DN上执行，除了可以避免CN和DN间数据网络交互以外，还可以充分利用多分片并发执行的能力，利用各个DN资源，加速查询。
+* Push down user SQL to DN for execution as much as possible. In addition to avoiding data network interaction between CN and DN, it can also make full use of the ability of multi-shard concurrent execution, and use each DN resource to speed up query.
 
-* 对于无法下推的部分算子，优化器会选择最优的方式来执行，比如选择合适的算子执行、选择合适的并行度策略以及是否使用 MPP 执行。
+* For some operators that cannot be pushed down, the optimizer will choose the optimal way to execute, such as selecting the appropriate operator for execution, selecting the appropriate parallelism strategy, and whether to use MPP for execution.
 
 
-除此之外，在执行优化过程中会考虑尽可能选择最佳索引。
+In addition to this, the selection of the best index possible is considered during the optimization process.
 
-基本概念 
+basic concept
 -------------------------
 
-在SQL调优过程中我们还需要理解下列概念：
+In the process of SQL tuning, we also need to understand the following concepts:
 
-* 逻辑SQL: 用户侧发起的查询SQL；
+* Logical SQL: query SQL initiated by the user side;
 
-* 物理SQL：SQL经过查询优化后，一般会拆分为可下推和不可下推的SQL，其中可下推的SQL是发往DN执行的，叫物理SQL。如果逻辑SQL被全部下推到DN执行，那么物理SQL等价于逻辑SQL。
+* Physical SQL: After query optimization, SQL is generally split into SQL that can be pushed down and SQL that cannot be pushed down. Among them, the SQL that can be pushed down is sent to the DN for execution, which is called physical SQL. If all logical SQL is pushed down to DN for execution, physical SQL is equivalent to logical SQL.
 
-* 并行度: 指查询过程中数据并行执行的最大数目，对于CN来说就是利用多核能力多线程计算，对DN来说就是同时执行多个下推物理SQL的并行数。
+* Parallelism: refers to the maximum number of parallel data executions during the query process. For CN, it is multi-threaded computing using multi-core capabilities. For DN, it is the number of parallel executions of multiple push-down physical SQLs at the same time.
 
-* 执行计划：逻辑SQL发送到CN节点，会经过解析优化生成可执行的计划树，计划树的每个节点代表是算子。一般可以通过执行计划初步断定查询的快慢，比如是否命中索引、算子选择是否合适等。
+* Execution plan: Logical SQL is sent to the CN node, and an executable plan tree will be generated after parsing and optimization. Each node of the plan tree represents an operator. Generally, the execution plan can be used to preliminarily determine the speed of the query, such as whether the index is hit, whether the operator selection is appropriate, and so on.
 
-* 索引：PolarDB-X一般分为局部索引和全局索引，局部索引指的是单个DN节点的索引(MYSQL索引)，全局索引是指构建在多个DN上的分布式索引。选择合适的索引，可以大大提高PolarDB-X的检索速度。
+* Index: PolarDB-X is generally divided into local index and global index. Local index refers to the index of a single DN node (MYSQL index), and global index refers to a distributed index built on multiple DNs. Choosing an appropriate index can greatly improve the retrieval speed of PolarDB-X.
 
 
-一条慢查询可能和物理SQL执行快慢、并发度数量、执行计划和索引选择是否合适都有关系。所以在分布式数据库中，SQL调优的成本一般会比单机数据库高。
+A slow query may be related to the speed of physical SQL execution, the amount of concurrency, execution plan and index selection. Therefore, in a distributed database, the cost of SQL tuning is generally higher than that of a stand-alone database.
 

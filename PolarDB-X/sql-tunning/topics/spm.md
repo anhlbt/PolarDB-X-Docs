@@ -1,86 +1,86 @@
-执行计划管理 
+Execution plan management
 ===========================
 
-本文介绍如何管理执行计划，将重复或者复杂查询的执行计划长久地保存下来。
+This article describes how to manage the execution plan and save the execution plan of repeated or complex queries for a long time.
 
-背景信息 
+Background Information
 -------------------------
 
-对于每一条SQL，优化器都会生成相应执行计划。但是很多情况下，应用请求的SQL都是重复的（仅参数不同），参数化之后的SQL完全相同。这时，可以按照参数化之后的SQL构造一个缓存，将除了参数以外的各种信息（比如执行计划）缓存起来，称为执行计划缓存（Plan Cache）。
+For each SQL, the optimizer will generate a corresponding execution plan. But in many cases, the SQL requested by the application is repeated (only the parameters are different), and the SQL after parameterization is exactly the same. At this time, a cache can be constructed according to the parameterized SQL to cache various information (such as the execution plan) except the parameters, which is called the execution plan cache (Plan Cache).
 
-另一方面，对于较复杂的查询（例如涉及到多个表的Join），为了使其执行计划能保持相对稳定，不因为版本升级等原因发生变化。执行计划管理（Plan Management）为每个SQL记录一组执行计划，该执行计划会被持久化地保存，即使版本升级也会保留。
+On the other hand, for more complex queries (such as joins involving multiple tables), in order to keep the execution plan relatively stable, it will not change due to version upgrades and other reasons. Execution plan management (Plan Management) records a set of execution plans for each SQL, and the execution plans will be stored persistently, even if the version is upgraded.
 
-工作流程概览 
+Workflow overview
 ---------------------------
 
-当PolarDB-X收到一条查询SQL时，会经历以下流程：
+When PolarDB-X receives a query SQL, it will go through the following process:
 
-1. 对查询SQL进行参数化处理，将所有参数替换为占位符 **？** 
+1. Parameterize the query SQL and replace all parameters with the placeholder **? **
 
-2. 以参数化的SQL作为Key，查找执行计划缓存中是否有缓存；如果没有，则调用优化器进行优化。
+2. Use the parameterized SQL as the key to find out whether there is a cache in the execution plan cache; if not, call the optimizer for optimization.
 
-3. 如果该SQL是简单查询，则直接执行，跳过执行计划管理相关步骤。
+3. If the SQL is a simple query, execute it directly, skipping the steps related to execution plan management.
 
-4. 如果该SQL是复杂查询，则使用基线（Baseline）中固化的执行计划；如果有多个，则选择代价最低的那个。
+4. If the SQL is a complex query, use the execution plan solidified in the Baseline; if there are more than one, choose the one with the lowest cost.
 
 
-![工作流程概览](../images/p334325.png)
+![Workflow overview](../images/p334325.png)
 
-执行计划缓存 
+execution plan cache
 ---------------------------
 
-PolarDB-X默认开启执行计划缓存功能。EXPLAIN结果中的HitCache表示当前SQL是否命中执行计划缓存。开启执行计划缓存后，PolarDB-X会对SQL做参数化处理，参数化会将SQL中的常量用占位符?替换，并构建出相应的参数列表。在执行计划中也可以看到LogicalView算子的SQL中含有?。
+PolarDB-X enables the execution plan cache function by default. HitCache in the EXPLAIN result indicates whether the current SQL hits the execution plan cache. After the execution plan cache is enabled, PolarDB-X will parameterize the SQL. The parameterization will replace the constants in the SQL with placeholders? and build a corresponding parameter list. In the execution plan, you can also see that the SQL of the LogicalView operator contains ?.
 
-![执行计划缓存](../images/p334381.png)
+![Execution Plan Cache](../images/p334381.png)
 
-执行计划管理 
+Execution plan management
 ---------------------------
 
-对于复杂SQL，经过执行计划缓存之后，还会经过执行计划管理流程。
+For complex SQL, after the execution plan cache, it will also go through the execution plan management process.
 
-执行计划缓存和执行计划管理都是采用参数化后的SQL作为Key来执行计划。执行计划缓存中会缓存所有SQL的执行计划，而执行计划管理仅对复杂查询SQL进行处理。由于受到具体参数的影响，SQL模版和最优的执行计划并非一一对应的。
+Both execution plan caching and execution plan management use parameterized SQL as the key to execute the plan. All SQL execution plans are cached in the execution plan cache, while execution plan management only processes complex query SQL. Due to the influence of specific parameters, there is not a one-to-one correspondence between the SQL template and the optimal execution plan.
 
-在执行计划管理中，每一条SQL对应一个基线，每个基线中包含一个或多个执行计划。实际使用中，会根据当时的参数选择其中代价最小的执行计划来执行。当执行计划缓存中的执行计划走进执行计划管理时，SPM会操作一个流程判断该执行计划是否是已知的，是已知的话，是否代价是最小的；不是已知的话，是否需要执行一下以判断该执行计划的优化程度。
+In execution plan management, each SQL corresponds to a baseline, and each baseline contains one or more execution plans. In actual use, the execution plan with the least cost will be selected for execution according to the parameters at that time. When the execution plan in the execution plan cache enters the execution plan management, SPM will operate a process to judge whether the execution plan is known, if it is known, whether the cost is the smallest; if it is not known, whether it needs to be executed To judge the optimization degree of the execution plan.
 
-![计划选择](../images/p334613.png)
+![Plan Selection](../images/p334613.png)
 
-**运维指令** 
+**Operation and Maintenance Instructions**
 
-PolarDB-X提供了丰富的指令集用于管理执行计划，语法如下：
+PolarDB-X provides a rich instruction set for managing execution plans. The syntax is as follows:
 
 ```sql
 BASELINE (LOAD|PERSIST|CLEAR|VALIDATE|LIST|DELETE) [Signed Integer,Signed Integer....]
-BASELINE (ADD|FIX) SQL (HINT Select Statemtnt)
+BASELINE (ADD|FIX) SQL (HINT Select Statement)
 ```
 
 
 
-* BASELINE (ADD&#124;FIX) SQL \<HINT\> \<Select Statement\>：将SQL以HINT修复过后的执行计划记录固定下来。
+* BASELINE (ADD|FIX) SQL \<HINT\> \<Select Statement\>: Fix the execution plan record after SQL is repaired with HINT.
 
-* BASELINE LOAD：将系统表中指定的基线信息刷新到内存并使其生效。
+* BASELINE LOAD: Refresh the baseline information specified in the system table to the memory and make it take effect.
 
-* BASELINE LOAD_PLAN：将系统表中指定的执行计划信息刷新到内存并使其生效。
+* BASELINE LOAD_PLAN: Refresh the execution plan information specified in the system table to the memory and make it take effect.
 
-* BASELINE LIST：列出当前所有的基线信息。
+* BASELINE LIST: List all current baseline information.
 
-* BASELINE PERSIST：将指定的基线落盘。
+* BASELINE PERSIST: Put the specified baseline into the disk.
 
-* BASELINE PERSIST_PLAN：将指定的执行计划落盘。
+* BASELINE PERSIST_PLAN: Place the specified execution plan on the disk.
 
-* BASELINE CLEAR：内存中清理某个基线。
+* BASELINE CLEAR: Clear a baseline in memory.
 
-* BASELINE CLEAR_PLAN：内存中清理某个执行计划。
+* BASELINE CLEAR_PLAN: Clear an execution plan in memory.
 
-* BASELINE DELETE：磁盘中删除某个基线。
+* BASELINE DELETE: Delete a baseline from disk.
 
-* BASELINE DELETE_PLAN：磁盘中删除某个执行计划。
-
-
+* BASELINE DELETE_PLAN: Delete an execution plan from the disk.
 
 
-**执行计划调优实战** 
 
-数据发生变化或PolarDB-X优化器引擎升级后，针对同一条SQL，有可能会出现更好的执行计划。SPM在自动演化时会将CBO优化自动发现的更优执行计划加入到SQL的基线中。除此以外，您也可以通过SPM的指令主动优化执行计划。
+
+**Execution plan tuning practice**
+
+After the data changes or the PolarDB-X optimizer engine is upgraded, a better execution plan may appear for the same SQL. During automatic evolution, SPM will add the better execution plan automatically discovered by CBO optimization to the SQL baseline. In addition, you can also actively optimize the execution plan through SPM instructions.
 
 ```sql
 SELECT *
@@ -88,7 +88,7 @@ FROM lineitem JOIN part ON l_partkey=p_partkey
 WHERE p_name LIKE '%green%';
 ```
 
-正常EXPLAIN发现该SQL生成的执行计划使用的是Hash Join，并且在Baseline List的基线中，该SQL仅有这一个执行计划：
+Normal EXPLAIN found that the execution plan generated by the SQL uses Hash Join, and in the baseline of the Baseline List, the SQL only has this execution plan:
 
 ```sql
 mysql> explain select * from lineitem join part on l_partkey=p_partkey where p_name like '%geen%';
@@ -110,24 +110,24 @@ mysql> baseline list;
 +-------------+--------------------------------------------------------------------------------+------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-------+----------+
 |  -399023558 | SELECT *
 FROM lineitem
-    JOIN part ON l_partkey = p_partkey
+JOIN part ON l_partkey = p_partkey
 WHERE p_name LIKE ? | -935671684 |
 Gather(parallel=true)
-  ParallelHashJoin(condition="l_partkey = p_partkey", type="inner")
-    LogicalView(tables="[00-03].lineitem", shardCount=4, sql="SELECT `l_orderkey`, `l_partkey`, `l_suppkey`, `l_linenumber`, `l_quantity`, `l_extendedprice`, `l_discount`, `l_tax`, `l_returnflag`, `l_linestatus`, `l_shipdate`, `l_commitdate`, `l_receiptdate`, `l_shipinstruct`, `l_shipmode`, `l_comment` FROM `lineitem` AS `lineitem`", parallel=true)
-    LogicalView(tables="[00-03].part", shardCount=4, sql="SELECT `p_partkey`, `p_name`, `p_mfgr`, `p_brand`, `p_type`, `p_size`, `p_container`, `p_retailprice`, `p_comment` FROM `part` AS `part` WHERE (`p_name` LIKE ?)", parallel=true)
- |     0 |        1 |
+ParallelHashJoin(condition="l_partkey = p_partkey", type="inner")
+LogicalView(tables="[00-03].lineitem", shardCount=4, sql="SELECT `l_orderkey`, `l_partkey`, `l_suppkey`, `l_linenumber`, `l_quantity`, `l_extendedprice`, `l_discount`, `l_tax`, `l_returnflag`, `l_linestatus`, `l_shipdate`, `l_commitdate`, `l_receiptdate`, `l_shipinstruct`, `l_shipmode`, `l_comment` FROM `lineitem` AS `lineitem`", parallel=true)
+LogicalView(tables="[00-03].part", shardCount=4, sql="SELECT `p_partkey`, `p_name`, `p_mfgr`, `p_brand`, `p_type`, `p_size`, `p_container`, `p_retailprice`, `p_comment` FROM `part` AS `part` WHERE (`p_name` LIKE ?)", parallel=true)
+|     0 |        1 |
 +-------------+--------------------------------------------------------------------------------+------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-------+----------+
 1 row in set (0.02 sec)
 ```
 
-假如这个SQL在某些条件下采用BKA Join（Lookup Join）会有更好的性能，那么首先需要想办法利用HINT引导PolarDB-X生成符合预期的执行计划。BKA Join的HINT格式为：
+If the SQL uses BKA Join (Lookup Join) under certain conditions, it will have better performance, then first you need to find a way to use HINT to guide PolarDB-X to generate an execution plan that meets expectations. The HINT format of BKA Join is:
 
 ```sql
 /*+TDDL:BKA_JOIN(lineitem, part)*/
 ```
 
-通过`EXPLAIN [HINT] [SQL]`观察出来的执行计划是否符合预期：
+Whether the execution plan observed through `EXPLAIN [HINT] [SQL]` meets expectations:
 
 ```sql
 mysql> explain /*+TDDL:bka_join(lineitem, part)*/ select * from lineitem join part on l_partkey=p_partkey where p_name like '%geen%';
@@ -146,9 +146,9 @@ mysql> explain /*+TDDL:bka_join(lineitem, part)*/ select * from lineitem join pa
 8 rows in set (0.14 sec)
 ```
 
-此时由于Hint的干预，Join的算法已修正为BKA Join。但是这并不会对基线造成变动，如果想以后每次遇到这条SQL都使用上面的计划，还需要将其加入到基线中。
+At this time, due to the intervention of Hint, the Join algorithm has been revised to BKA Join. But this will not change the baseline. If you want to use the above plan every time you encounter this SQL, you need to add it to the baseline.
 
-可以采用执行计划管理的Baseline Add指令为该SQL增加一个执行计划。这样就会同时有两套执行计划存在于该SQL的基线中，CBO优化器会根据代价选择一个执行计划执行。
+You can use the Baseline Add command of execution plan management to add an execution plan for the SQL. In this way, two sets of execution plans will exist in the SQL baseline at the same time, and the CBO optimizer will select an execution plan to execute according to the cost.
 
 ```sql
 mysql> baseline add sql /*+TDDL:bka_join(lineitem, part)*/ select * from lineitem join part on l_partkey=p_partkey where p_name like '%geen%';
@@ -164,30 +164,30 @@ mysql> baseline list;
 +-------------+--------------------------------------------------------------------------------+-------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-------+----------+
 |  -399023558 | SELECT *
 FROM lineitem
-    JOIN part ON l_partkey = p_partkey
+JOIN part ON l_partkey = p_partkey
 WHERE p_name LIKE ? | -1024543942 |
 Gather(parallel=true)
-  ParallelBKAJoin(condition="l_partkey = p_partkey", type="inner")
-    LogicalView(tables="[00-03].lineitem", shardCount=4, sql="SELECT `l_orderkey`, `l_partkey`, `l_suppkey`, `l_linenumber`, `l_quantity`, `l_extendedprice`, `l_discount`, `l_tax`, `l_returnflag`, `l_linestatus`, `l_shipdate`, `l_commitdate`, `l_receiptdate`, `l_shipinstruct`, `l_shipmode`, `l_comment` FROM `lineitem` AS `lineitem`", parallel=true)
-    Gather(concurrent=true)
-      LogicalView(tables="[00-03].part", shardCount=4, sql="SELECT `p_partkey`, `p_name`, `p_mfgr`, `p_brand`, `p_type`, `p_size`, `p_container`, `p_retailprice`, `p_comment` FROM `part` AS `part` WHERE (`p_name` LIKE ?)")
- |     0 |        1 |
+ParallelBKAJoin(condition="l_partkey = p_partkey", type="inner")
+LogicalView(tables="[00-03].lineitem", shardCount=4, sql="SELECT `l_orderkey`, `l_partkey`, `l_suppkey`, `l_linenumber`, `l_quantity`, `l_extendedprice`, `l_discount`, `l_tax`, `l_returnflag`, `l_linestatus`, `l_shipdate`, `l_commitdate`, `l_receiptdate`, `l_shipinstruct`, `l_shipmode`, `l_comment` FROM `lineitem` AS `lineitem`", parallel=true)
+Gather(concurrent=true)
+LogicalView(tables="[00-03].part", shardCount=4, sql="SELECT `p_partkey`, `p_name`, `p_mfgr`, `p_brand`, `p_type`, `p_size`, `p_container`, `p_retailprice`, `p_comment` FROM `part` AS `part` WHERE (`p_name` LIKE ?)")
+|     0 |        1 |
 |  -399023558 | SELECT *
 FROM lineitem
-    JOIN part ON l_partkey = p_partkey
+JOIN part ON l_partkey = p_partkey
 WHERE p_name LIKE ? |  -935671684 |
 Gather(parallel=true)
-  ParallelHashJoin(condition="l_partkey = p_partkey", type="inner")
-    LogicalView(tables="[00-03].lineitem", shardCount=4, sql="SELECT `l_orderkey`, `l_partkey`, `l_suppkey`, `l_linenumber`, `l_quantity`, `l_extendedprice`, `l_discount`, `l_tax`, `l_returnflag`, `l_linestatus`, `l_shipdate`, `l_commitdate`, `l_receiptdate`, `l_shipinstruct`, `l_shipmode`, `l_comment` FROM `lineitem` AS `lineitem`", parallel=true)
-    LogicalView(tables="[00-03].part", shardCount=4, sql="SELECT `p_partkey`, `p_name`, `p_mfgr`, `p_brand`, `p_type`, `p_size`, `p_container`, `p_retailprice`, `p_comment` FROM `part` AS `part` WHERE (`p_name` LIKE ?)", parallel=true)
-               |     0 |        1 |
+ParallelHashJoin(condition="l_partkey = p_partkey", type="inner")
+LogicalView(tables="[00-03].lineitem", shardCount=4, sql="SELECT `l_orderkey`, `l_partkey`, `l_suppkey`, `l_linenumber`, `l_quantity`, `l_extendedprice`, `l_discount`, `l_tax`, `l_returnflag`, `l_linestatus`, `l_shipdate`, `l_commitdate`, `l_receiptdate`, `l_shipinstruct`, `l_shipmode`, `l_comment` FROM `lineitem` AS `lineitem`", parallel=true)
+LogicalView(tables="[00-03].part", shardCount=4, sql="SELECT `p_partkey`, `p_name`, `p_mfgr`, `p_brand`, `p_type`, `p_size`, `p_container`, `p_retailprice`, `p_comment` FROM `part` AS `part` WHERE (`p_name` LIKE ?)", parallel=true)
+|     0 |        1 |
 +-------------+--------------------------------------------------------------------------------+-------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-------+----------+
 2 rows in set (0.03 sec)
 ```
 
 
 
-通过以上`Baseline List`指令展示出来的结果，可以看到基于BKA_JOIN的执行计划已增加到该 SQL的基线中。此时EXPLAIN这条SQL，发现随SQL中`p_name LIKE ? `条件变化，PolarDB-X会选择不同的执行计划。如果想让PolarDB-X固定使用上述的执行计划（而非在两个中挑选一个），可以采用`Baseline Fix`指令强制PolarDB-X走指定的执行计划。
+Through the results displayed by the above `Baseline List` command, we can see that the execution plan based on BKA_JOIN has been added to the baseline of the SQL. At this time, EXPLAIN this SQL, and found that PolarDB-X will choose different execution plans as the condition of `p_name LIKE ?` in the SQL changes. If you want PolarDB-X to use the above execution plan (instead of choosing one of the two), you can use the `Baseline Fix` command to force PolarDB-X to follow the specified execution plan.
 
 ```sql
 mysql> baseline fix sql /*+TDDL:bka_join(lineitem, part)*/ select * from lineitem join part on l_partkey=p_partkey where p_name like '%geen%';
@@ -199,40 +199,40 @@ mysql> baseline fix sql /*+TDDL:bka_join(lineitem, part)*/ select * from lineite
 1 row in set (0.07 sec)
 mysql> baseline list\G
 *************************** 1. row ***************************
-      BASELINE_ID: -399023558
+BASELINE_ID: -399023558
 PARAMETERIZED_SQL: SELECT *
 FROM lineitem
-    JOIN part ON l_partkey = p_partkey
+JOIN part ON l_partkey = p_partkey
 WHERE p_name LIKE ?
-          PLAN_ID: -1024543942
+PLAN_ID: -1024543942
 EXTERNALIZED_PLAN:
 Gather(parallel=true)
-  ParallelBKAJoin(condition="l_partkey = p_partkey", type="inner")
-    LogicalView(tables="[00-03].lineitem", shardCount=4, sql="SELECT `l_orderkey`, `l_partkey`, `l_suppkey`, `l_linenumber`, `l_quantity`, `l_extendedprice`, `l_discount`, `l_tax`, `l_returnflag`, `l_linestatus`, `l_shipdate`, `l_commitdate`, `l_receiptdate`, `l_shipinstruct`, `l_shipmode`, `l_comment` FROM `lineitem` AS `lineitem`", parallel=true)
-    Gather(concurrent=true)
-      LogicalView(tables="[00-03].part", shardCount=4, sql="SELECT `p_partkey`, `p_name`, `p_mfgr`, `p_brand`, `p_type`, `p_size`, `p_container`, `p_retailprice`, `p_comment` FROM `part` AS `part` WHERE (`p_name` LIKE ?)")
-            FIXED: 1
-         ACCEPTED: 1
+ParallelBKAJoin(condition="l_partkey = p_partkey", type="inner")
+LogicalView(tables="[00-03].lineitem", shardCount=4, sql="SELECT `l_orderkey`, `l_partkey`, `l_suppkey`, `l_linenumber`, `l_quantity`, `l_extendedprice`, `l_discount`, `l_tax`, `l_returnflag`, `l_linestatus`, `l_shipdate`, `l_commitdate`, `l_receiptdate`, `l_shipinstruct`, `l_shipmode`, `l_comment` FROM `lineitem` AS `lineitem`", parallel=true)
+Gather(concurrent=true)
+LogicalView(tables="[00-03].part", shardCount=4, sql="SELECT `p_partkey`, `p_name`, `p_mfgr`, `p_brand`, `p_type`, `p_size`, `p_container`, `p_retailprice`, `p_comment` FROM `part` AS `part` WHERE (`p_name` LIKE ?)")
+FIXED: 1
+ACCEPTED: 1
 *************************** 2. row ***************************
-      BASELINE_ID: -399023558
+BASELINE_ID: -399023558
 PARAMETERIZED_SQL: SELECT *
 FROM lineitem
-    JOIN part ON l_partkey = p_partkey
+JOIN part ON l_partkey = p_partkey
 WHERE p_name LIKE ?
-          PLAN_ID: -935671684
+PLAN_ID: -935671684
 EXTERNALIZED_PLAN:
 Gather(parallel=true)
-  ParallelHashJoin(condition="l_partkey = p_partkey", type="inner")
-    LogicalView(tables="[00-03].lineitem", shardCount=4, sql="SELECT `l_orderkey`, `l_partkey`, `l_suppkey`, `l_linenumber`, `l_quantity`, `l_extendedprice`, `l_discount`, `l_tax`, `l_returnflag`, `l_linestatus`, `l_shipdate`, `l_commitdate`, `l_receiptdate`, `l_shipinstruct`, `l_shipmode`, `l_comment` FROM `lineitem` AS `lineitem`", parallel=true)
-    LogicalView(tables="[00-03].part", shardCount=4, sql="SELECT `p_partkey`, `p_name`, `p_mfgr`, `p_brand`, `p_type`, `p_size`, `p_container`, `p_retailprice`, `p_comment` FROM `part` AS `part` WHERE (`p_name` LIKE ?)", parallel=true)
-            FIXED: 0
-         ACCEPTED: 1
+ParallelHashJoin(condition="l_partkey = p_partkey", type="inner")
+LogicalView(tables="[00-03].lineitem", shardCount=4, sql="SELECT `l_orderkey`, `l_partkey`, `l_suppkey`, `l_linenumber`, `l_quantity`, `l_extendedprice`, `l_discount`, `l_tax`, `l_returnflag`, `l_linestatus`, `l_shipdate`, `l_commitdate`, `l_receiptdate`, `l_shipinstruct`, `l_shipmode`, `l_comment` FROM `lineitem` AS `lineitem`", parallel=true)
+LogicalView(tables="[00-03].part", shardCount=4, sql="SELECT `p_partkey`, `p_name`, `p_mfgr`, `p_brand`, `p_type`, `p_size`, `p_container`, `p_retailprice`, `p_comment` FROM `part` AS `part` WHERE (`p_name` LIKE ?)", parallel=true)
+FIXED: 0
+ACCEPTED: 1
 2 rows in set (0.01 sec)
 ```
 
 
 
-`Baseline Fix`指令执行完后，可以看到BKA Join执行计划的`Fix`状态位已被置为1。此时就算不加HINT，任意条件下Explain这条SQL，都一定会采用这个执行计划。
+After the `Baseline Fix` command is executed, you can see that the `Fix` status bit of the BKA Join execution plan has been set to 1. Even if HINT is not added at this time, the SQL Explain will definitely use this execution plan under any condition.
 
 ```sql
 mysql> explain select * from lineitem join part on l_partkey=p_partkey where p_name like '%green%';

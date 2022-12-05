@@ -1,86 +1,86 @@
-调优方法论 
+Tuning Methodology
 ==========================
 
-找出需调优的慢SQL后，先通过EXPLAIN查看执行计划，然后通过如下方法优化SQL：下推更多计算至存储层MySQL，适当增加索引，优化执行计划。
+After finding the slow SQL that needs to be tuned, first check the execution plan through EXPLAIN, and then optimize the SQL through the following methods: push down more calculations to the storage layer MySQL, increase indexes appropriately, and optimize the execution plan.
 
-下推更多的计算 
+push down more calculations
 ----------------------------
 
-PolarDB-X会尽可能将更多的计算下推到存储层MySQL。下推计算能够减少数据传输，减少网络层和PolarDB-X层的开销，提升SQL语句的执行效率。PolarDB-X支持下推几乎所有算子，包括：
+PolarDB-X pushes down as many calculations as possible to the storage layer MySQL. Pushdown computing can reduce data transmission, reduce the overhead of the network layer and PolarDB-X layer, and improve the execution efficiency of SQL statements. PolarDB-X supports pushdown of almost all operators, including:
 
-* 过滤条件，如WHERE或HAVING中的条件。
+* Filter conditions, such as conditions in WHERE or HAVING.
 
-* 聚合算子，如COUNT，GROUP BY等，会分成两阶段进行聚合计算。
+* Aggregation operators, such as COUNT, GROUP BY, etc., will be divided into two stages for aggregation calculation.
 
-* 排序算子，如ORDER BY。
+* Sorting operator, such as ORDER BY.
 
-* JOIN和子查询，两边JOIN Key分片方式必须一样，或其中一边为广播表。
+* For JOIN and subquery, both sides of the JOIN Key must be fragmented in the same way, or one of them must be a broadcast table.
 
 
-如下示例讲解如何将更多的计算下推到MySQL来加速执行
+The following example explains how to push down more calculations to MySQL to speed up execution
 
 ```sql
 > EXPLAIN select * from customer, nation where c_nationkey = n_nationkey and n_regionkey = 3;
 Project(c_custkey="c_custkey", c_name="c_name", c_address="c_address", c_nationkey="c_nationkey", c_phone="c_phone", c_acctbal="c_acctbal", c_mktsegment="c_mktsegment", c_comment="c_comment", n_nationkey="n_nationkey", n_name="n_name", n_regionkey="n_regionkey", n_comment="n_comment")
-  BKAJoin(condition="c_nationkey = n_nationkey", type="inner")
-    Gather(concurrent=true)
-      LogicalView(tables="nation", shardCount=2, sql="SELECT * FROM `nation` AS `nation` WHERE (`n_regionkey` = ?)")
-    Gather(concurrent=true)
-      LogicalView(tables="customer_[0-7]", shardCount=8, sql="SELECT * FROM `customer` AS `customer` WHERE (`c_nationkey` IN ('?'))")
+BKAJoin(condition="c_nationkey = n_nationkey", type="inner")
+Gather(concurrent=true)
+LogicalView(tables="nation", shardCount=2, sql="SELECT * FROM `nation` AS `nation` WHERE (`n_regionkey` = ?)")
+Gather(concurrent=true)
+LogicalView(tables="customer_[0-7]", shardCount=8, sql="SELECT * FROM `customer` AS `customer` WHERE (`c_nationkey` IN ('?'))")
 ```
 
 
 
-若执行计划中出现了BKAJOIN，BKAJOIN每次从左表获取一批数据，就会拼成一个IN查询取出右表相关联的行，并在最后执行JOIN操作。由于左表数据量很大，需要取很多次才能完成查询，执行很慢。
+If BKAJOIN appears in the execution plan, each time BKAJOIN obtains a batch of data from the left table, it will compose an IN query to fetch the associated rows from the right table, and finally execute the JOIN operation. Due to the large amount of data in the left table, it needs to be retrieved many times to complete the query, and the execution is very slow.
 
-无法下推JOIN的原因是：当前情况下，nation是按主键n_nationkey切分的，而本查询的JOIN Key是c_custkey，二者不同，所以下推失败。
+The reason why the JOIN cannot be pushed down is that in the current situation, nation is segmented by the primary key n_nationkey, but the JOIN Key of this query is c_custkey, which is different, so the push-down fails.
 
-考虑到nation （国家）表数据量并不大、且几乎没有修改操作，可以将其重建成如下广播表：
+Considering that the amount of data in the nation (country) table is not large and there are almost no modification operations, it can be rebuilt into the following broadcast table:
 
 ```sql
---- 修改后 ---
+--- Modified ---
 CREATE TABLE `nation` (
-  `n_nationkey` int(11) NOT NULL,
-  `n_name` varchar(25) NOT NULL,
-  `n_regionkey` int(11) NOT NULL,
-  `n_comment` varchar(152) DEFAULT NULL,
-  PRIMARY KEY (`n_nationkey`)
-) BROADCAST;  --- 声明为广播表
+`n_nationkey` int(11) NOT NULL,
+`n_name` varchar(25) NOT NULL,
+`n_regionkey` int(11) NOT NULL,
+`n_comment` varchar(152) DEFAULT NULL,
+PRIMARY KEY (`n_nationkey`)
+) BROADCAST; --- Declare as broadcast table
 ```
 
 
 
-修改后，可以看到执行计划中不再出现JOIN，几乎所有计算都被下推到存储层MySQL执行了（LogicalView中），而上层仅仅是将结果收集并返回给用户（Gather算子），执行性能大大增强。
+After the modification, you can see that JOIN no longer appears in the execution plan, and almost all calculations are pushed down to the storage layer MySQL for execution (in LogicalView), while the upper layer only collects the results and returns them to the user (Gather operator). Performance is greatly enhanced.
 
 ```sql
 > EXPLAIN select * from customer, nation where c_nationkey = n_nationkey and n_regionkey = 3;
 Gather(concurrent=true)
-  LogicalView(tables="customer_[0-7],nation", shardCount=8, sql="SELECT * FROM `customer` AS `customer` INNER JOIN `nation` AS `nation` ON ((`nation`.`n_regionkey` = ?) AND (`customer`.`c_nationkey` = `nation`.`n_nationkey`))")
+LogicalView(tables="customer_[0-7],nation", shardCount=8, sql="SELECT * FROM `customer` AS `customer` INNER JOIN `nation` AS `nation` ON ((`nation`.`n_regionkey` = ?) AND (`customer`.`c_nationkey` = `nation`.`n_nationkey`))")
 ```
 
-更多关于下推的原理和优化，请参见[查询改写与下推](query-rewriting.md)。
+For more information on the principle and optimization of pushdown, please refer to [Query Rewriting and Pushdown](query-rewriting.md).
 
-增加索引 
+increase index
 -------------------------
 
-PolarDB-X支持[全局二级索引](../../features/topics/gsi.md)
+PolarDB-X supports [Global Secondary Index](../../features/topics/gsi.md)
 
-以下以慢SQL示例来讲解如何通过GSI下推更多算子
+The following is an example of slow SQL to explain how to push down more operators through GSI
 
 ```sql
 > EXPLAIN select o_orderkey, c_custkey, c_name from orders, customer
-          where o_custkey = c_custkey and o_orderdate = '2019-11-11' and o_totalprice > 100;
+where o_custkey = c_custkey and o_orderdate = '2019-11-11' and o_totalprice > 100;
 Project(o_orderkey="o_orderkey", c_custkey="c_custkey", c_name="c_name")
-  HashJoin(condition="o_custkey = c_custkey", type="inner")
-    Gather(concurrent=true)
-      LogicalView(tables="customer_[0-7]", shardCount=8, sql="SELECT `c_custkey`, `c_name` FROM `customer` AS `customer`")
-    Gather(concurrent=true)
-      LogicalView(tables="orders_[0-7]", shardCount=8, sql="SELECT `o_orderkey`, `o_custkey` FROM `orders` AS `orders` WHERE ((`o_orderdate` = ?) AND (`o_totalprice` > ?))")
+HashJoin(condition="o_custkey = c_custkey", type="inner")
+Gather(concurrent=true)
+LogicalView(tables="customer_[0-7]", shardCount=8, sql="SELECT `c_custkey`, `c_name` FROM `customer` AS `customer`")
+Gather(concurrent=true)
+LogicalView(tables="orders_[0-7]", shardCount=8, sql="SELECT `o_orderkey`, `o_custkey` FROM `orders` AS `orders` WHERE ((`o_orderdate` = ?) AND (`o_totalprice` > ?))")
 ```
 
 
 
-执行计划中，orders按照o_orderkey拆分而customer按照c_custkey拆分，由于拆分维度不同JOIN算子不能下推。考虑到2019-11-11当天总价高于100的订单非常多，跨分片JOIN耗时很高，需要在orders表上创建一个GSI来使得JOIN算子可以下推。查询中使用到了orders表的o_orderkey, o_custkey, o_orderdate, o_totalprice四列，其中o_orderkey, o_custkey分别是主表和索引表的拆分键，o_orderdate, o_totalprice作为覆盖列包含在索引中用于避免回表。
+In the execution plan, orders are split according to o_orderkey and customers are split according to c_custkey. Due to different split dimensions, the JOIN operator cannot be pushed down. Considering that there are a lot of orders with a total price higher than 100 on 2019-11-11, cross-shard JOIN takes a long time, and it is necessary to create a GSI on the orders table so that the JOIN operator can be pushed down. The query uses the four columns o_orderkey, o_custkey, o_orderdate, o_totalprice of the orders table, where o_orderkey, o_custkey are the split keys of the main table and the index table respectively, and o_orderdate, o_totalprice are included in the index as covering columns to avoid returning to the table.
 
 ```sql
 > create global index i_o_custkey on orders(`o_custkey`) covering(`o_orderdate`, `o_totalprice`)
@@ -89,57 +89,57 @@ DBPARTITION BY HASH(`o_custkey`) TBPARTITION BY HASH(`o_custkey`) TBPARTITIONS 4
 
 
 
-增加GSI并通过force index(i_o_custkey)强制使用索引后，跨分片JOIN变为MySQL上的局部JOIN （IndexScan中），并且通过覆盖列避免了回表操作，查询性能得到提升。
+After adding GSI and forcing the index to be used through force index (i_o_custkey), the cross-shard JOIN becomes a partial JOIN on MySQL (in IndexScan), and the table return operation is avoided by covering columns, and the query performance is improved.
 
 ```sql
 > EXPLAIN select o_orderkey, c_custkey, c_name from orders force index(i_o_custkey), customer
-          where o_custkey = c_custkey and o_orderdate = '2019-11-11' and o_totalprice > 100;
+where o_custkey = c_custkey and o_orderdate = '2019-11-11' and o_totalprice > 100;
 Gather(concurrent=true)
-  IndexScan(tables="i_o_custkey_[0-7],customer_[0-7]", shardCount=8, sql="SELECT `i_o_custkey`.`o_orderkey`, `customer`.`c_custkey`, `customer`.`c_name` FROM `i_o_custkey` AS `i_o_custkey` INNER JOIN `customer` AS `customer` ON (((`i_o_custkey`.`o_orderdate` = ?) AND (`i_o_custkey`.`o_custkey` = `customer`.`c_custkey`)) AND (`i_o_custkey`.`o_totalprice` > ?))")
+IndexScan(tables="i_o_custkey_[0-7],customer_[0-7]", shardCount=8, sql="SELECT `i_o_custkey`.`o_orderkey`, `customer`.`c_custkey`, `customer`.`c_name` FROM `i_o_custkey` AS `i_o_custkey` INNER JOIN `customer` AS `customer` ON (((`i_o_custkey`.`o_orderdate` = ?) AND (`i_o_custkey`.`o_custkey` = `customer`.`c_custkey`)) AND (`i_o_custkey`.`o_totalprice` > ?))")
 ```
 
-更多关于全局二级索引的使用细节，请参见[全局二级索引](../../dev-guide/topics/gsi-faq.md)。
+For more details about the use of global secondary indexes, please refer to [Global Secondary Indexes](../../dev-guide/topics/gsi-faq.md).
 
-执行计划调优 
+Execution plan tuning
 ---------------------------
 
-大多数情况下，PolarDB-X的查询优化器可以自动产生最佳的执行计划。但是，少数情况下，可能因为统计信息存在缺失、误差等，导致生成的执行计划不够好，这时，可以通过Hint来干预优化器行为，使之生成更好的执行计划。如下示例将讲解执行计划的调优。
+In most cases, PolarDB-X's query optimizer can automatically generate the best execution plan. However, in a few cases, the generated execution plan may not be good enough due to lack of statistical information, errors, etc. At this time, Hint can be used to intervene in the behavior of the optimizer to generate a better execution plan. The following example will explain the tuning of the execution plan.
 
 ```sql
 > EXPLAIN select o_orderkey, c_custkey, c_name from orders, customer
-          where o_custkey = c_custkey and o_orderdate = '2019-11-15' and o_totalprice < 10;
+where o_custkey = c_custkey and o_orderdate = '2019-11-15' and o_totalprice < 10;
 Project(o_orderkey="o_orderkey", c_custkey="c_custkey", c_name="c_name")
-  HashJoin(condition="o_custkey = c_custkey", type="inner")
-    Gather(concurrent=true)
-      LogicalView(tables="customer_[0-7]", shardCount=8, sql="SELECT `c_custkey`, `c_name` FROM `customer` AS `customer`")
-    Gather(concurrent=true)
-      LogicalView(tables="orders_[0-7]", shardCount=8, sql="SELECT `o_orderkey`, `o_custkey` FROM `orders` AS `orders` WHERE ((`o_orderdate` = ?) AND (`o_totalprice` < ?))")
+HashJoin(condition="o_custkey = c_custkey", type="inner")
+Gather(concurrent=true)
+LogicalView(tables="customer_[0-7]", shardCount=8, sql="SELECT `c_custkey`, `c_name` FROM `customer` AS `customer`")
+Gather(concurrent=true)
+LogicalView(tables="orders_[0-7]", shardCount=8, sql="SELECT `o_orderkey`, `o_custkey` FROM `orders` AS `orders` WHERE ((`o_orderdate` = ?) AND (`o_totalprice` < ?))")
 ```
 
 
 
-实际上2019-11-15这一天总价低于10元的订单数量很小，只有几条，这时候用BKAJOIN是比Hash JOIN更好的选择（关于BKAJOIN和Hash JOIN的介绍，请参见[JOIN优化和执行](join-optimizing.md)
+In fact, on November 15, 2019, the number of orders with a total price of less than 10 yuan was very small, and there were only a few. At this time, using BKAJOIN is a better choice than Hash JOIN (for the introduction of BKAJOIN and Hash JOIN, please refer to [JOIN Optimization and Execution](join-optimizing.md)
 
-通过如下/\*+TDDL:BKA_JOIN(orders, customer)\*/ Hint强制优化器使用BKAJOIN（LookupJOIN）:
+Force the optimizer to use BKAJOIN (LookupJOIN) by /\*+TDDL:BKA_JOIN(orders, customer)\*/ Hint as follows:
 
 ```sql
 > EXPLAIN /*+TDDL:BKA_JOIN(orders, customer)*/ select o_orderkey, c_custkey, c_name from orders, customer
-          where o_custkey = c_custkey and o_orderdate = '2019-11-15' and o_totalprice < 10;
+where o_custkey = c_custkey and o_orderdate = '2019-11-15' and o_totalprice < 10;
 Project(o_orderkey="o_orderkey", c_custkey="c_custkey", c_name="c_name")
-  BKAJoin(condition="o_custkey = c_custkey", type="inner")
-    Gather(concurrent=true)
-      LogicalView(tables="orders_[0-7]", shardCount=8, sql="SELECT `o_orderkey`, `o_custkey` FROM `orders` AS `orders` WHERE ((`o_orderdate` = ?) AND (`o_totalprice` < ?))")
-    Gather(concurrent=true)
-      LogicalView(tables="customer_[0-7]", shardCount=8, sql="SELECT `c_custkey`, `c_name` FROM `customer` AS `customer` WHERE (`c_custkey` IN ('?'))")
+BKAJoin(condition="o_custkey = c_custkey", type="inner")
+Gather(concurrent=true)
+LogicalView(tables="orders_[0-7]", shardCount=8, sql="SELECT `o_orderkey`, `o_custkey` FROM `orders` AS `orders` WHERE ((`o_orderdate` = ?) AND (`o_totalprice` < ?))")
+Gather(concurrent=true)
+LogicalView(tables="customer_[0-7]", shardCount=8, sql="SELECT `c_custkey`, `c_name` FROM `customer` AS `customer` WHERE (`c_custkey` IN ('?'))")
 ```
 
-可以选择执行加如下Hint的查询：
+You can choose to execute the query with the following Hint added:
 
 ```sql
 /*+TDDL:BKA_JOIN(orders, customer)*/ select o_orderkey, c_custkey, c_name from orders, customer where o_custkey = c_custkey and o_orderdate = '2019-11-15' and o_totalprice < 10;
 ```
 
-以上操作加快了SQL查询速度。为了让Hint发挥作用，可以将应用中的SQL加上Hint，或者更方便的方式是使用执行计划管理（Plan Management）功能对该SQL固定执行计划。具体操作如下：
+The above operations speed up the SQL query. In order to make Hint work, you can add Hint to the SQL in the application, or a more convenient way is to use the execution plan management (Plan Management) function to fix the execution plan of the SQL. The specific operation is as follows:
 
 ```sql
 BASELINE FIX SQL /*+TDDL:BKA_JOIN(orders, customer)*/ select o_orderkey, c_custkey, c_name from orders, customer where o_custkey = c_custkey and o_orderdate = '2019-11-15';
@@ -147,12 +147,12 @@ BASELINE FIX SQL /*+TDDL:BKA_JOIN(orders, customer)*/ select o_orderkey, c_custk
 
 
 
-这样一来，对于这条SQL（参数可以不同），PolarDB-X都会采用如上固定的执行计划。更多关于执行计划管理的信息，请参见[执行计划管理](spm.md)
+In this way, for this SQL (parameters can be different), PolarDB-X will adopt the above fixed execution plan. For more information about execution plan management, please refer to [Execution Plan Management](spm.md)
 
-并发执行 
+concurrent execution
 -------------------------
 
-用户可以通过HINT /\*+TDDL:PARALLELISM=4\*/ 指定并行度，充分利用多核能力加速计算。比如以下例子:
+Users can specify the degree of parallelism through HINT /\*+TDDL:PARALLELISM=4\*/ to make full use of multi-core capabilities to accelerate calculations. Take the following example:
 
 ```sql
 mysql> explain physical select a.k, count(*) cnt from sbtest1 a, sbtest1 b where a.id = b.k and a.id > 1000 group by k having cnt > 1300 or
@@ -181,7 +181,7 @@ der by cnt limit 5, 10;
 
 
 
-默认的并行度并不高，通过强制指定并行度，利用单机或者多机并行模式来加速。
+The default degree of parallelism is not high. By forcing the specified degree of parallelism, it can be accelerated by using single-machine or multi-machine parallel mode.
 
 ```sql
 mysql> explain physical /*+TDDL:PARALLELISM=8*/select a.k, count(*) cnt from sbtest1 a, sbtest1 b where a.id = b.k and a.id > 1000 group by k having cnt > 1300 order by cnt limit 5, 10;                                                                                                                                                     |

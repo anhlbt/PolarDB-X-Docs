@@ -1,79 +1,79 @@
-# 通过 Kubernetes 部署集群
+# Deploy the cluster via Kubernetes
 
-本文介绍了如何创建一个简单的 Kubernetes 集群，部署 PolarDB-X Operator，并使用 Operator 部署一个完整的 PolarDB-X 集群。
+This article describes how to create a simple Kubernetes cluster, deploy the PolarDB-X Operator, and use the Operator to deploy a full PolarDB-X cluster.
 
-> 注：本文中的部署说明仅用于测试目的，不要直接用于生产环境。
+> Note: The deployment instructions in this article are for testing purposes only and should not be used directly in a production environment.
 
-# 创建 Kubernetes 测试集群
+# Create a Kubernetes test cluster
 
-本节主要介绍如何使用 [minikube](https://minikube.sigs.k8s.io/docs/start/) 创建 Kubernetes 测试集群，您也可以使用阿里云的 [容器服务 ACK](https://www.aliyun.com/product/kubernetes) 来创建一个 Kubernetes 集群，并遵循教程部署 PolarDB-X Operator 和 PolarDB-X 集群。
+This section mainly introduces how to use [minikube](https://minikube.sigs.k8s.io/docs/start/) to create a Kubernetes test cluster. You can also use Alibaba Cloud’s [Container Service ACK](https://www .aliyun.com/product/kubernetes) to create a Kubernetes cluster, and follow the tutorial to deploy PolarDB-X Operator and PolarDB-X cluster.
 
-## 使用 minikube 创建 Kubernetes 集群
+## Create a Kubernetes cluster using minikube
 
-[minikube](https://minikube.sigs.k8s.io/docs/start/) 是由社区维护的用于快速创建 Kubernetes 测试集群的工具，适合测试和学习 Kubernetes。使用 minikube 创建的 Kubernetes 集群可以运行在容器或是虚拟机中，本节中以 CentOS 8.2 上创建 Kubernetes 为例。
+[minikube](https://minikube.sigs.k8s.io/docs/start/) is a tool maintained by the community for quickly creating Kubernetes test clusters, suitable for testing and learning Kubernetes. A Kubernetes cluster created using minikube can run in a container or a virtual machine. In this section, the creation of Kubernetes on CentOS 8.2 is taken as an example.
 
-> 注：如在其他操作系统例如 macOS 或 Windows 上部署 minikube，部分步骤可能略有不同。
+> Note: If you deploy minikube on other operating systems such as macOS or Windows, some steps may be slightly different.
 
-部署前，请确保已经安装 minikube 和 Docker，并符合以下要求：
+Before deployment, please ensure that minikube and Docker have been installed and meet the following requirements:
 
-+ 机器规格不小于 4c8g
++ The machine specification is not less than 4c8g
 + minikube >= 1.18.0
 + docker >= 1.19.3
 
-minikube 要求使用非 root 账号进行部署，如果你是用 root 账号访问机器，需要新建一个账号。
+minikube requires a non-root account for deployment. If you access the machine with a root account, you need to create a new account.
 
 ```bash
 $ useradd -ms /bin/bash galaxykube
 $ usermod -aG docker galaxykube
 ```
 
-如果你使用其他账号，请和上面一样将它加入 docker 组中，以确保它能够直接访问 docker。
+If you use another account, please add it to the docker group as above to ensure that it can directly access docker.
 
-使用 su 切换到账号 `galaxykube`，
+Use su to switch to the account `galaxykube`,
 
 ```bash
-$ su galaxykube
+$ are galaxycubes
 ```
 
-执行下面的命令启动一个 minikube，
+Execute the following command to start a minikube,
 
 ```bash
 minikube start --cpus 4 --memory 7960 --image-mirror-country cn --registry-mirror=https://docker.mirrors.ustc.edu.cn
 ```
 
-> 注：这里我们使用了阿里云的 minikube 镜像源以及 USTC 提供的 docker 镜像源来加速镜像的拉取。
+> Note: Here we use Alibaba Cloud’s minikube image source and the docker image source provided by USTC to speed up the pull of the image.
 
-如果一切运行正常，你将会看到类似下面的输出。
+If everything went fine, you should see output similar to the one below.
 
 ```bash
 😄  minikube v1.23.2 on Centos 8.2.2004 (amd64)
 ✨  Using the docker driver based on existing profile
 ❗  Your cgroup does not allow setting memory.
-    ▪ More information: https://docs.docker.com/engine/install/linux-postinstall/#your-kernel-does-not-support-cgroup-swap-limit-capabilities
+▪ More information: https://docs.docker.com/engine/install/linux-postinstall/#your-kernel-does-not-support-cgroup-swap-limit-capabilities
 ❗  Your cgroup does not allow setting memory.
-    ▪ More information: https://docs.docker.com/engine/install/linux-postinstall/#your-kernel-does-not-support-cgroup-swap-limit-capabilities
+▪ More information: https://docs.docker.com/engine/install/linux-postinstall/#your-kernel-does-not-support-cgroup-swap-limit-capabilities
 👍  Starting control plane node minikube in cluster minikube
 🚜  Pulling base image ...
 🤷  docker "minikube" container is missing, will recreate.
 🔥  Creating docker container (CPUs=4, Memory=7960MB) ...
-    > kubeadm.sha256: 64 B / 64 B [--------------------------] 100.00% ? p/s 0s
-    > kubelet.sha256: 64 B / 64 B [--------------------------] 100.00% ? p/s 0s
-    > kubectl.sha256: 64 B / 64 B [--------------------------] 100.00% ? p/s 0s
-    > kubeadm: 43.71 MiB / 43.71 MiB [---------------] 100.00% 1.01 MiB p/s 44s
-    > kubectl: 44.73 MiB / 44.73 MiB [-------------] 100.00% 910.41 KiB p/s 51s
-    > kubelet: 146.25 MiB / 146.25 MiB [-------------] 100.00% 2.71 MiB p/s 54s
+> kubeadm.sha256: 64 B / 64 B [--------------------------] 100.00% ? p/s 0s
+> kubelet.sha256: 64 B / 64 B [--------------------------] 100.00% ? p/s 0s
+> kubectl.sha256: 64 B / 64 B [--------------------------] 100.00% ? p/s 0s
+> kubeadm: 43.71 MiB / 43.71 MiB [---------------] 100.00% 1.01 MiB p/s 44s
+> kubectl: 44.73 MiB / 44.73 MiB [-------------] 100.00% 910.41 KiB p/s 51s
+> cube: 146.25 MiB / 146.25 MiB [ -------------] 100.00% 2.71 MiB p/s 54p
 
-    ▪ Generating certificates and keys ...
-    ▪ Booting up control plane ...
-    ▪ Configuring RBAC rules ...
+▪ Generating certificates and keys ...
+▪ Booting up control plane ...
+▪ Configuring RBAC rules ...
 🔎  Verifying Kubernetes components...
-    ▪ Using image registry.cn-hangzhou.aliyuncs.com/google_containers/storage-provisioner:v5 (global image repository)
+▪ Using image registry.cn-hangzhou.aliyuncs.com/google_containers/storage-provisioner:v5 (global image repository)
 🌟  Enabled addons: storage-provisioner, default-storageclass
 💡  kubectl not found. If you need it, try: 'minikube kubectl -- get pods -A'
 🏄  Done! kubectl is now configured to use "minikube" cluster and "default" namespace by default
 ```
 
-此时 minikube 已经正常运行。minikube 将自动设置 kubectl 的配置文件，如果之前已经安装过 kubectl，现在可以使用 kubectl 来访问集群：
+At this point minikube is running normally. minikube will automatically set up the kubectl configuration file, if you have installed kubectl before, you can use kubectl to access the cluster now:
 
 ```bash
 $ kubectl cluster-info
@@ -84,7 +84,7 @@ CoreDNS is running at https://192.168.49.2:8443/api/v1/namespaces/kube-system/se
 To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
 ```
 
-如果没有安装 kubectl 的，minikube 也提供了子命令来使用 kubectl：
+If kubectl is not installed, minikube also provides subcommands to use kubectl:
 
 ```bash
 $ minikube kubectl -- cluster-info
@@ -94,45 +94,45 @@ CoreDNS is running at https://192.168.49.2:8443/api/v1/namespaces/kube-system/se
 To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
 ```
 
-> 注意：minikube kubectl 子命令需要在 kubectl 的参数前加 "--"，如使用 bash shell 可以用 alias kubectl="minikube kubectl -- " 来设置快捷指令。下文都将使用 kubectl 命令进行操作。
+> Note: The minikube kubectl subcommand needs to add "--" before the kubectl parameter. If you use the bash shell, you can use alias kubectl="minikube kubectl -- " to set the shortcut command. The following will use the kubectl command to operate.
 
-现在我们可以开始部署 PolarDB-X Operator 了！
+Now we can start deploying the PolarDB-X Operator!
 
-> 测试完成后，执行 minikube delete 来销毁集群。
+> After testing, execute minikube delete to destroy the cluster.
 
-# 部署 PolarDB-X Operator
+# Deploy PolarDB-X Operator
 
-开始之前，请确保满足以下前置要求：
+Before getting started, make sure the following prerequisites are met:
 
-+ 已经准备了一个运行中的 Kubernetes 集群，并确保
-  + 集群版本 >= 1.18.0
-  + 至少有 2 个可分配的 CPU
-  + 至少有 4GB 的可分配内存
-  + 至少有 30GB 以上的磁盘空间
-+ 已经安装了 kubectl 可以访问 Kubernetes 集群
-+ 已经安装了 [Helm 3](https://helm.sh/docs/intro/install/)
++ Have prepared a running Kubernetes cluster and ensured
++ Cluster version >= 1.18.0
++ At least 2 CPUs to allocate
++ At least 4GB of allocatable memory
++ At least 30GB of disk space
++ kubectl has been installed to access the Kubernetes cluster
++ Installed [Helm 3](https://helm.sh/docs/intro/install/)
 
 
-首先创建一个叫 `polardbx-operator-system` 的命名空间，
+First create a namespace called `polardbx-operator-system`,
 
 ```bash
 $ kubectl create namespace polardbx-operator-system
 ```
 
-执行以下命令安装 PolarDB-X Operator。
+Execute the following command to install PolarDB-X Operator.
 
 ```bash
 $ helm install --namespace polardbx-operator-system polardbx-operator https://github.com/ApsaraDB/galaxykube/releases/download/v1.2.1/polardbx-operator-1.2.1.tgz
 ```
 
-您也可以通过 PolarDB-X 的 Helm Chart 仓库安装：
+You can also install from PolarDB-X's Helm Chart repository:
 
 ```shell
 helm repo add polardbx https://polardbx-charts.oss-cn-beijing.aliyuncs.com
 helm install --namespace polardbx-operator-system polardbx-operator polardbx/polardbx-operator
 ```
 
-期望看到如下输出：
+Expect to see output like this:
 
 ```bash
 NAME: polardbx-operator
@@ -144,7 +144,7 @@ TEST SUITE: None
 NOTES:
 polardbx-operator is installed. Please check the status of components:
 
-    kubectl get pods --namespace polardbx-operator-system
+kubectl get pods --namespace polardbx-operator-system
 
 Now have fun with your first PolarDB-X cluster.
 
@@ -153,13 +153,13 @@ Here's the manifest for quick start:
 ```yaml
 apiVersion: polardbx.aliyun.com/v1
 kind: PolarDBXCluster
-metadata:
-  name: quick-start
-  annotations:
-    polardbx/topology-mode-guide: quick-start
+Metata:
+name: quick-start
+annotations:
+polardbx/topology-mode-guide: quick-start
 ```
 
-查看 PolarDB-X Operator 组件的运行情况，等待它们都进入 Running 状态：
+Check the running status of the PolarDB-X Operator components and wait for them to enter the Running state:
 
 ```bash
 $ kubectl get pods --namespace polardbx-operator-system
@@ -169,28 +169,28 @@ polardbx-hpfs-d44zd                            1/1     Running   0          66s
 polardbx-tools-updater-459lc                   1/1     Running   0          66s
 ```
 
-恭喜！PolarDB-X Operator 已经安装完成，现在可以开始部署 PolarDB-X 集群了！
+Congratulations! The PolarDB-X Operator has been installed, and now you can start deploying the PolarDB-X cluster!
 
-# 部署 PolarDB-X 集群
+# Deploy PolarDB-X cluster
 
-现在我们来快速部署一个 PolarDB-X 集群，它包含 1 个 GMS 节点、1 个 CN 节点、1 个 DN 节点和 1 个 CDC 节点。执行以下命令创建一个这样的集群：
+Now let's quickly deploy a PolarDB-X cluster, which contains 1 GMS node, 1 CN node, 1 DN node and 1 CDC node. Execute the following command to create such a cluster:
 
 ```bash
 echo "apiVersion: polardbx.aliyun.com/v1
 kind: PolarDBXCluster
-metadata:
-  name: quick-start
-  annotations:
-    polardbx/topology-mode-guide: quick-start" | kubectl apply -f -
+Metata:
+name: quick-start
+annotations:
+polardbx/topology-mode-guide: quick-start" | kubectl apply -f -
 ```
 
-你将看到以下输出：
+You will see the following output:
 
 ```bash
 polardbxcluster.polardbx.aliyun.com/quick-start created
 ```
 
-使用如下命令查看创建状态：
+Use the following command to check the creation status:
 
 ```bash
 $ kubectl get polardbxcluster -w
@@ -201,53 +201,53 @@ quick-start   1/1   0/1   1/1   1/1   Creating          4m43s
 quick-start   1/1   1/1   1/1   1/1   Running    2.4 GiB   4m44s
 ```
 
-当 PHASE 显示为 Running 时，PolarDB-X 集群已经部署完成！恭喜你，现在可以开始连接并体验 PolarDB-X 分布式数据库了！
+When PHASE shows Running, the PolarDB-X cluster has been deployed! Congratulations, you are now ready to connect and experience the PolarDB-X distributed database!
 
-# 连接 PolarDB-X 集群
+# Connect PolarDB-X cluster
 
-PolarDB-X 支持 MySQL 传输协议及绝大多数语法，因此你可以使用 mysql 命令行工具连接 PolarDB-X 进行数据库操作。
+PolarDB-X supports the MySQL transport protocol and most syntaxes, so you can use the mysql command line tool to connect to PolarDB-X for database operations.
 
-在开始之前，请确保已经安装 mysql 命令行工具。
+Before starting, make sure you have the mysql command line tools installed.
 
-## 转发 PolarDB-X 的访问端口
+## Forward the access port of PolarDB-X
 
-创建 PolarDB-X 集群时，PolarDB-X Operator 同时会为集群创建用于访问的服务，默认是 ClusterIP 类型。使用下面的命令查看用于访问的服务：
+When creating a PolarDB-X cluster, the PolarDB-X Operator will also create an access service for the cluster, which is of the ClusterIP type by default. Use the following command to view the services used for access:
 
 ```bash
 $ kubectl get svc quick-start
 ```
 
-期望输出：
+Expected output:
 
 ```bash
 NAME          TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)             AGE
 quick-start   ClusterIP   10.110.214.223   <none>        3306/TCP,8081/TCP   5m25s
 ```
 
-我们使用 kubectl 提供的 port-forward 命名将服务的 3306 端口转发到本地，并且保持转发进程存活。
+We use the port-forward name provided by kubectl to forward port 3306 of the service to the local, and keep the forwarding process alive.
 
 ```bash
 $ kubectl port-forward svc/quick-start 3306
 ```
 
-## 连接 PolarDB-X 集群
+## Connect PolarDB-X cluster
 
-Operator 将为 PolarDB-X 集群默认创建一个账号 polardbx_root，并将密码存放在 secret 中。
+The Operator will create an account polardbx_root for the PolarDB-X cluster by default, and store the password in secret.
 
-使用以下命令查看 polardbx_root 账号的密码：
+Use the following command to view the password of the polardbx_root account:
 
 ```bash
 $ kubectl get secret quick-start -o jsonpath="{.data['polardbx_root']}" | base64 -d - | xargs echo "Password: "
 Password:  bvp9wjxx
 ```
 
-保持 port-forward 的运行，重新打开一个终端，执行如下命令连接集群：
+Keep port-forward running, reopen a terminal, and execute the following command to connect to the cluster:
 
 ```bash
 $ mysql -h127.0.0.1 -P3306 -upolardbx_root -pbvp9wjxx
 ```
 
-期望输出：
+Expected output:
 
 ```bash
 Welcome to the MySQL monitor.  Commands end with ; or \g.
@@ -265,36 +265,36 @@ Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
 mysql>
 ```
 
-恭喜！你已经成功地部署并连接到了一个 PolarDB-X 分布式数据库集群，现在你可以开始体验分布式数据库的能力了！
+Congratulations! You have successfully deployed and connected to a PolarDB-X distributed database cluster, now you can start to experience the power of distributed databases!
 
-# 销毁 PolarDB-X 集群
+# Destroy the PolarDB-X cluster
 
-完成测试后，你可以通过以下命令销毁 PolarDB-X 集群。
+After testing, you can destroy the PolarDB-X cluster with the following command.
 
 ```bash
 $ kubectl delete polardbxcluster quick-start
 ```
 
-再次查看以确保删除完成
+Check again to make sure the deletion is complete
 
 ```bash
 $ kubectl get polardbxcluster quick-start
 ```
 
-# 卸载 PolarDB-X Operator
+# Uninstall PolarDB-X Operator
 
-使用如下命令卸载 PolarDB-X Operator。
+Use the following command to uninstall PolarDB-X Operator.
 
 ```bash
 $ helm uninstall --namespace polardbx-operator-system polardbx-operator
 ```
 
-Helm 卸载并不会删除对应的定制资源 CRD，使用下面的命令查看并删除 PolarDB-X 对应的定制资源：
+Uninstalling Helm will not delete the corresponding custom resource CRD. Use the following command to view and delete the custom resource corresponding to PolarDB-X:
 
 ```bash
-$ kubectl get crds | grep polardbx.aliyun.com
-polardbxclusters.polardbx.aliyun.com   2021-10-17T07:17:27Z
-xstores.polardbx.aliyun.com            2021-10-17T07:17:27Z
+$ kubectl get crds | grabbed polardbx.aliyun.com
+Pollardbacksclusters.pollardbacks.eyeon.com 2021-10-17T07:17:I notice
+xstores.polardbx.aliyun.com 2021-10-17T07:17:27Z
 
 $ kubectl delete crds polardbxclusters.polardbx.aliyun.com xstores.polardbx.aliyun.com
 ```

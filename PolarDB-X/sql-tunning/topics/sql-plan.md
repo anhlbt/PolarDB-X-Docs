@@ -1,144 +1,144 @@
-执行计划介绍 
+Implementation Plan Introduction
 ===========================
 
-本文介绍如何使用查询执行计划并介绍一些基本的算子含义和实现。
+This article introduces how to use query execution plans and introduces some basic operator meanings and implementations.
 
-算子介绍 
+Operator introduction
 -------------------------
 
 
 
-|               含义                |                                           物理算子                                            |
+| Meaning | Physical operator |
 |---------------------------------|-------------------------------------------------------------------------------------------|
-| 下发给DN的算子                        | LogicalView，LogicalModifyView，PhyTableOperation, IndexScan                                |
-| 连接（Join）                        | BKAJoin，NLJoin，HashJoin，SortMergeJoin，HashSemiJoin，SortMergeSemiJoin，MaterializedSemiJoin |
-| 排序                              | MemSort，TopN， MergeSort                                                                   |
-| 聚合（Group By）                    | HashAgg，SortAgg                                                                           |
-| 数据重分布或者聚合                       | Exchange Gather                                                                           |
-| 过滤                              | Filter                                                                                    |
-| 投影                              | Project                                                                                   |
-| 求并集                             | Union                                                                                     |
-| 设置结果集输出行数(Limit/Offset...Fetch) | Limit                                                                                     |
-| 窗口函数                            | OverWindow                                                                                |
+| Operators delivered to DN | LogicalView, LogicalModifyView, PhyTableOperation, IndexScan |
+|电视（Join） | BKAJoin，NLJoin，HashJoin，SortMergeJoin，HashSemiJoin，SortMergeSemiJoin，MaterializedSemiJoin |
+| Sorting | MemSort, TopN, MergeSort |
+| Aggregation (Group By) | HashAgg, SortAgg |
+| Data redistribution or aggregation | Exchange Gather |
+| Filter | Filter |
+| Projection | Project |
+| Union | Union |
+| Set the number of output rows in the result set (Limit/Offset...Fetch) | Limit |
+| Window Functions | OverWindow |
 
 
 
-**LogicalView** 
+**LogicalView**
 
-LogicalView是从存储层MySQL数据源拉取数据的算子，类似于其他数据库中的TableScan或IndexScan，但支持更多的下推。LogicalView中包含下推的SQL语句和数据源信息，更像一个视图。其中下推的SQL可能包含多种算子，如Project、Filter、聚合、排序、Join和子查询等。下述示例为您展示EXPLAIN中LogicalView的输出信息及其含义：
+LogicalView is an operator that pulls data from MySQL data sources in the storage layer, similar to TableScan or IndexScan in other databases, but supports more pushdowns. LogicalView contains pushed-down SQL statements and data source information, more like a view. The pushed-down SQL may contain various operators, such as Project, Filter, Aggregation, Sorting, Join, and subqueries. The following example shows you the output information of LogicalView in EXPLAIN and its meaning:
 
 ```sql
 mysql> explain select * From sbtest1 where id > 1000;
 Gather(concurrent=true)
-   LogicalView(tables="[0000-0031].sbtest1_[000-127]", shardCount=128, sql="SELECT * FROM `sbtest1` WHERE (`id` > ?)")
+LogicalView(tables="[0000-0031].sbtest1_[000-127]", shardCount=128, sql="SELECT * FROM `sbtest1` WHERE (`id` > ?)")
 ```
 
-LogicalView 的信息由三部分构成：
+LogicalView's information consists of three parts:
 
-* tables：存储层MySQL对应的表名，以英文句号（.）分割，英文句号（.）之前是分库对应的编号，之后是表名及其编号，如[000-127]表示表名编号从000到127的所有表。
+* tables: The table name corresponding to the storage layer MySQL, separated by English period (.), before the English period (.) is the number corresponding to the sub-database, followed by the table name and its number, such as [000-127] indicates the number of the table name All tables from 000 to 127.
 
-* shardCount：需访问的分表总数，该示例会访问从000到127共计128张分表。
+* shardCount: The total number of shards to be accessed, this example will access a total of 128 shards from 000 to 127.
 
-* sql：下发至存储层MySQL的SQL模版，PolarDB-X在执行时会将表名替换为物理表名，参数化的常量问号（?）替换成实际参数，详情请参见[执行计划管理](spm.md)。
-
-
+* sql: The SQL template sent to the storage layer MySQL. PolarDB-X will replace the table name with the physical table name during execution, and replace the parameterized constant question mark (?) with the actual parameter. For details, please refer to [Execution Plan Management] (spm.md).
 
 
-**IndexScan** 
 
-IndexScan和LogicalView一样也是表示从存储层MySQL数据源拉取数据的算子，扫描的是索引表。下述示例为您展示EXPLAIN中IndexScan的输出信息及其含义：
+
+**IndexScan**
+
+IndexScan, like LogicalView, is also an operator that pulls data from the storage layer MySQL data source, and scans the index table. The following example shows you the output information of IndexScan in EXPLAIN and its meaning:
 
 ```sql
 mysql> explain select * from sequence_one_base where integer_test=1;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+|
 +-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 | IndexScan(tables="DRDS_POLARX1_QATEST_APP_000000_GROUP.gsi_sequence_one_index_3a0A_01", sql="SELECT `pk`, `integer_test`, `varchar_test`, `char_test`, `blob_test`, `tinyint_test`, `tinyint_1bit_test`, `smallint_test`, `mediumint_test`, `bit_test`, `bigint_test`, `float_test`, `double_test`, `decimal_test`, `date_test`, `time_test`, `datetime_test`, `timestamp_test`, `year_test`, `mediumtext_test` FROM `gsi_dml_sequence_one_index_index1` AS `gsi_dml_sequence_one_index_index1` WHERE (`integer_test` = ?)") |
 ```
 
-作为谓词条件对索引表做裁剪，所以实际上我们会去生成IndexScan算子，表示只会扫描gsi_sequence_one_index索引表一个分片。上述SQL正常应该扫描sequence_one_base表，由于integer_test不是分区键，需要扫描sequence_one_base所有的分片。但是由于sequence_one_base表在integer_test列上存在全局二级索引gsi_sequence_one_index，将
+As a predicate condition, the index table is trimmed, so in fact, we will generate the IndexScan operator, which means that only one slice of the gsi_sequence_one_index index table will be scanned. The above SQL should normally scan the sequence_one_base table. Since integer_test is not a partition key, all fragments of sequence_one_base need to be scanned. However, since the sequence_one_base table has a global secondary index gsi_sequence_one_index on the integer_test column, the
 
-**Gather** 
+**Gather**
 
-Gather将多份数据合并成同份数据。上面的例子中，Gather将各个分表上查询到的数据合并成一份。Gather通常出现在LogicalView上方，表示收集合并各个分表的数据。
+Gather merges multiple data into the same data. In the above example, Gather merges the data queried on each sub-table into one. Gather usually appears above the LogicalView, which means collecting and merging the data of each sub-table.
 
-**Exchange** 
+**Exchange**
 
-Exchange是一个逻辑算子，本身不对计算过程中的数据做计算，只是将输入的数据做重分布后，输出给下游算子。一般重分布策略分为
+Exchange is a logical operator that does not perform calculations on the data in the calculation process, but redistributes the input data and outputs it to downstream operators. The general redistribution strategy is divided into
 
-* SINGLETON: 将上游多份数据进行合并输出，这种重分布策略等价于Gather
+* SINGLETON: Merge and output multiple upstream data, this redistribution strategy is equivalent to Gather
 
-* HASH_DISTRIBUTED: 将上游输入的数据按照某些列做repartition，常见于包含Join和Agg的执行计划中。
+* HASH_DISTRIBUTED: Repartition the upstream input data according to certain columns, which is common in execution plans containing Join and Agg.
 
-* BROADCAST_DISTRIBUTED: 将上游相同一份数据分发成多份，广播给下游多个节点，主要应用于MPP执行计划中。
-
-
-
-
-**MergeSort** 
-
-MergeSort即归并排序算子，表示将有序的数据流进行归并排序，合并成一个有序的数据流。例如：
-
-```sql
-mysql> explain select * from sbtest1 where id > 1000 order by id limit 5,10; 
-MergeSort(sort="id ASC", offset=?1, fetch=?2)   
-   LogicalView(tables="[0000-0031].sbtest1_[000-127]", shardCount=128, sql="SELECT * FROM `sbtest1` WHERE (`id` > ?) ORDER BY `id` LIMIT (? + ?)")
-```
-
-MergeSort算子包含三部分内容：
-
-* sort：表示排序字段以及排列顺序，id ASC表示按照ID字段递增排序，DESC表示递减排序。
-
-* offset：表示获取结果集时的偏移量，例子中被参数化了，实际值为5。
-
-* fetch：表示最多返回的数据行数。与offset类似，同样是参数化的表示，实际对应的值为10。
+* BROADCAST_DISTRIBUTED: Distribute the same upstream data into multiple copies and broadcast to multiple downstream nodes, mainly used in MPP execution plan.
 
 
 
 
-**Project** 
+**MergeSort**
 
-Project表示投影操作，即从输入数据中选择部分列输出，或者对某些列进行转换（通过函数或者表达式计算）后输出，当然也可以包含常量。
+MergeSort is a merge sort operator, which means to merge and sort ordered data streams and merge them into an ordered data stream. E.g:
 
 ```sql
-mysql> explain select '你好, DRDS', 1 / 2, CURTIME(); 
-Project(你好, DRDS="_UTF-16'你好, DRDS'", 1 / 2="1 / 2", CURTIME()="CURTIME()")
+mysql> explain select * from sbtest1 where id > 1000 order by id limit 5,10;
+MergeSort(sort="id ASC", offset=?1, fetch=?2)
+LogicalView(tables="[0000-0031].sbtest1_[000-127]", shardCount=128, sql="SELECT * FROM `sbtest1` WHERE (`id` > ?) ORDER BY `id` LIMIT (? + ?)")
 ```
 
-Project的计划中包括每列的列名及其对应的列、值、函数或者表达式。
+The MergeSort operator consists of three parts:
 
-**Filter** 
+* sort: Indicates the sorting field and the order of sorting, id ASC indicates ascending sorting according to the ID field, and DESC indicates descending sorting.
 
-Filter表示过滤操作，其中包含一些过滤条件。该算子对输入数据进行过滤，若满足条件，则输出，否则丢弃。如下是一个较复杂的例子，包含了以上介绍的大部分算子。
+* offset: Indicates the offset when obtaining the result set, which is parameterized in the example, and the actual value is 5.
+
+* fetch: Indicates the maximum number of data rows returned. Similar to offset, it is also a parameterized representation, and the actual corresponding value is 10.
+
+
+
+
+**Project**
+
+Project represents a projection operation, that is, selects some columns to output from the input data, or converts some columns (calculated by functions or expressions) and outputs them. Of course, it can also contain constants.
+
+```sql
+mysql> explain select 'Hello, DRDS', 1 / 2, CURTIME();
+Project(Hello, DRDS="_UTF-16'Hello, DRDS'", 1 / 2="1 / 2", CURTIME()="CURTIME()")
+```
+
+The project plan includes the column name of each column and its corresponding column, value, function or expression.
+
+**Filter**
+
+Filter represents a filtering operation, which contains some filtering conditions. This operator filters the input data, and if the condition is met, it is output, otherwise it is discarded. The following is a more complex example that includes most of the operators introduced above.
 
 ```sql
 mysql> explain select k, avg(id) avg_id from sbtest1 where id > 1000 group by k having avg_id > 1300;
 Filter(condition="avg_id > ?1")
-  Project(k="k", avg_id="sum_pushed_sum / sum_pushed_count")
-    SortAgg(group="k", sum_pushed_sum="SUM(pushed_sum)", sum_pushed_count="SUM(pushed_count)")
-      MergeSort(sort="k ASC")
-        LogicalView(tables="[0000-0031].sbtest1_[000-127]", shardCount=128, sql="SELECT `k`, SUM(`id`) AS `pushed_sum`, COUNT(`id`) AS `pushed_count` FROM `sbtest1` WHERE (`id` > ?) GROUP BY `k` ORDER BY `k`")
+Project(k="k", avg_id="sum_pushed_sum / sum_pushed_count")
+SortAgg(group="k", sum_pushed_sum="SUM(pushed_sum)", sum_pushed_count="SUM(pushed_count)")
+MergeSort(sort="k ASC")
+LogicalView(tables="[0000-0031].sbtest1_[000-127]", shardCount=128, sql="SELECT `k`, SUM(`id`) AS `pushed_sum`, COUNT(`id`) AS `pushed_count` FROM `sbtest1` WHERE (`id` > ?) GROUP BY `k` ORDER BY `k`")
 ```
 
-WHERE id &gt; 1000中的条件没有对应的Filter算子，是因为这个算子最终被下推到了LogicalView中，可以在LogicalView的SQL中看到WHERE (id &gt; ?) 。
+The condition in WHERE id > 1000 does not have a corresponding Filter operator, because this operator is finally pushed down to LogicalView, and you can see WHERE (id > ?) in the SQL of LogicalView.
 
-**Union All与Union Distinct** 
+**Union All与Union Distinct**
 
-顾名思义，Union All对应UNIONALL，Union Distinct对应UNIONDISTINCT。该算子通常有2个或更多个输入，表示将多个输入的数据合并在一起。例如：
+As the name implies, Union All corresponds to UNIONALL, and Union Distinct corresponds to UNIONDISTINCT. This operator usually has 2 or more inputs, which means combining data from multiple inputs. E.g:
 
 ```sql
 mysql> explain select * From sbtest1 where id > 1000 union distinct select * From sbtest1 where id < 200;
 UnionDistinct(concurrent=true)
-  Gather(concurrent=true)
-    LogicalView(tables="[0000-0031].sbtest1_[000-127]", shardCount=128, sql="SELECT * FROM `sbtest1` WHERE (`id` > ?)")
-  Gather(concurrent=true)
-    LogicalView(tables="[0000-0031].sbtest1_[000-127]", shardCount=128, sql="SELECT * FROM `sbtest1` WHERE (`id` < ?)")
+Gather(concurrent=true)
+LogicalView(tables="[0000-0031].sbtest1_[000-127]", shardCount=128, sql="SELECT * FROM `sbtest1` WHERE (`id` > ?)")
+Gather(concurrent=true)
+LogicalView(tables="[0000-0031].sbtest1_[000-127]", shardCount=128, sql="SELECT * FROM `sbtest1` WHERE (`id` < ?)")
 ```
 
 
 
-**LogicalModifyView** 
+**LogicalModifyView**
 
-LogicalView表示从底层数据源获取数据的算子，与之对应的，LogicalModifyView表示对底层数据源的修改算子，其中也会记录一个SQL语句，该SQL可能是INSERT、UPDATE或者DELETE。
+LogicalView represents the operator for obtaining data from the underlying data source. Correspondingly, LogicalModifyView represents the modification operator for the underlying data source, which also records a SQL statement, which may be INSERT, UPDATE, or DELETE.
 
 ```sql
 mysql> explain update sbtest1 set c='Hello, DRDS' where id > 1000;
@@ -152,13 +152,13 @@ mysql> explain delete from sbtest1 where id > 1000;
 LogicalModifyView(tables="[0000-0031].sbtest1_[000-127]", shardCount=128, sql="DELETE FROM `sbtest1` WHERE (`id` > ?)")
 ```
 
-LogicalModifyView查询计划的内容与LogicalView类似，包括下发的物理分表，分表数以及SQL模版。同样，由于开启了执行计划缓存，对SQL做了参数化处理，SQL模版中的常量会用?替换。
+The content of the LogicalModifyView query plan is similar to that of LogicalView, including the distributed physical sub-table, the number of sub-tables, and the SQL template. Similarly, since the execution plan cache is enabled and the SQL is parameterized, the constants in the SQL template will be replaced with ?.
 
-**PhyTableOperation** 
+**PhyTableOperation**
 
-PhyTableOperation表示对某个物理分表直接执行一个操作。
+PhyTableOperation means to directly perform an operation on a physical sub-table.
 
-**说明** 通常情况下，该算子仅用于INSERT语句。但当路由分发分到一个分片时，该算子也会出现在SELECT语句中。
+**Note** Normally, this operator is only used in INSERT statements. But when the routing distribution is divided into a shard, the operator will also appear in the SELECT statement.
 
 ```sql
 mysql> explain insert into sbtest1 values(1, 1, '1', '1'),(2, 2, '2', '2');
@@ -166,23 +166,23 @@ PhyTableOperation(tables="SYSBENCH_CORONADB_1526954857179TGMMSYSBENCH_CORONADB_V
 PhyTableOperation(tables="SYSBENCH_CORONADB_1526954857179TGMMSYSBENCH_CORONADB_VGOC_0000_RDS.[sbtest1_002]", sql="INSERT INTO ? (`id`, `k`, `c`, `pad`) VALUES(?, ?, ?, ?)", params="`sbtest1_002`,2,2,2,2")
 ```
 
-示例中，INSERT插入两行数据，每行数据对应一个PhyTableOperation算子。PhyTableOperation算子的内容包括三部分：
+In the example, INSERT inserts two rows of data, and each row of data corresponds to a PhyTableOperation operator. The content of the PhyTableOperation operator consists of three parts:
 
-* tables：物理表名，仅有唯一一个物理表名。
+* tables: Physical table name, only one physical table name.
 
-* sql：SQL模版，该SQL模版中表名和常量均被参数化，用?替换，对应的参数在随后的params中给出。
+* sql: SQL template, the table name and constants in this SQL template are parameterized, replaced by ?, and the corresponding parameters are given in the subsequent params.
 
-* params：SQL模版对应的参数，包括表名和常量。
-
-
+* params: The parameters corresponding to the SQL template, including table names and constants.
 
 
-执行计划介绍 
+
+
+Implementation Plan Introduction
 ---------------------------
 
-一条SQL进入到PolarDB-X分布式数据库后，经过解析优化，会生成一个可运行的执行计划。该执行计划是按照算子执行过程中的依赖关系组成。一般通过执行计划，可以窥探SQL在数据库内部是如何高效运行的。为了方便理解，这里罗列几个例子。
+After a piece of SQL enters the PolarDB-X distributed database, it will generate a runnable execution plan after parsing and optimization. The execution plan is composed according to the dependencies during operator execution. Generally, through the execution plan, you can spy on how efficiently SQL runs inside the database. For ease of understanding, here are a few examples.
 
-**示例1** 
+**Example 1**
 
 
 
@@ -193,15 +193,15 @@ mysql> explain select count(*) from lineitem group by L_LINESTATUS;
 |       LogicalView(tables="[000000-000003].lineitem_[00-15]", shardCount=16, sql="SELECT `L_LINESTATUS`, COUNT(*) AS `count(*)` FROM `lineitem` AS `lineitem` GROUP BY `L_LINESTATUS`")
 ```
 
-Exchange: 汇总LogicalView返回的数据，按照L_LINESTATUS字段做重分布式，输出给下游算子；由于group by 的列和表lineitem分区键不对齐，group by是没法完全下推给DN执行。所以group by会拆分成两阶段，将partition agg下推给DN，先做部分聚合；然后在CN层将数据做重分布式，再做一次最终的聚合，输出结果。
+Exchange: Summarize the data returned by LogicalView, redistribute it according to the L_LINESTATUS field, and output it to downstream operators; because the columns of the group by are not aligned with the partition key of the table lineitem, the group by cannot be completely pushed down to the DN for execution. Therefore, the group by will be split into two stages, and the partition agg will be pushed down to the DN to perform partial aggregation first; then the data will be redistributed at the CN layer, and then the final aggregation will be performed to output the result.
 
-**示例2** 
+**Example 2**
 
 
 
 ```sql
 mysql> explain select * from lineitem, orders where L_ORDERKEY= O_ORDERKEY;
-                                                                                                                                                                                                                                                                                                                                          |
+|
 +------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 | HashJoin(condition="O_ORDERKEY = L_ORDERKEY", type="inner")                                                                                                                                                                                                                                                                                                      |
 |   Exchange(distribution=hash[0], collation=[])                                                                                                                                                                                                                                                                                                                   |
@@ -210,18 +210,18 @@ mysql> explain select * from lineitem, orders where L_ORDERKEY= O_ORDERKEY;
 |     LogicalView(tables="[000000-000003].orders_[00-15]", shardCount=16, sql="SELECT `O_ORDERKEY`, `O_CUSTKEY`, `O_ORDERSTATUS`, `O_TOTALPRICE`, `O_ORDERDATE`, `O_ORDERPRIORITY`, `O_CLERK`, `O_SHIPPRIORITY`, `O_COMMENT` FROM `orders` AS `orders`")
 ```
 
-示例2是典型的两张表做关联(join)，由于两表分区键没对齐，所有join没有下推，整个执行是将两个表数据都扫描出来，在CN层做关联计算。
+Example 2 is a typical join between two tables. Since the partition keys of the two tables are not aligned, all joins are not pushed down. The entire execution is to scan out the data of the two tables and perform the join calculation at the CN layer.
 
-* LogicalView: 扫描表数据。
+* LogicalView: Scan table data.
 
-* Exchange: 汇总LogicalView返回的数据，分布按照关联条件的列做重分布式，输出给下游Join算子。
+* Exchange: Summarize the data returned by LogicalView, distribute the data according to the columns of the associated conditions, and output it to the downstream Join operator.
 
-* HashJoin: 接受两边输入，通过构建HashTable的方式来计算关联结果。
-
-
+* HashJoin: Accept input from both sides, and calculate the association result by building a HashTable.
 
 
-**示例3** 
+
+
+**Example 3**
 
 
 
@@ -231,9 +231,9 @@ mysql> explain select * from lineitem, orders where L_LINENUMBER= O_ORDERKEY;
 |   LogicalView(tables="[000000-000003].lineitem_[00-15],orders_[00-15]", shardCount=16, sql="SELECT `lineitem`.`L_ORDERKEY`, `lineitem`.`L_PARTKEY`, `lineitem`.`L_SUPPKEY`, `lineitem`.`L_LINENUMBER`, `lineitem`.`L_QUANTITY`, `lineitem`.`L_EXTENDEDPRICE`, `lineitem`.`L_DISCOUNT`, `lineitem`.`L_TAX`, `lineitem`.`L_RETURNFLAG`, `lineitem`.`L_LINESTATUS`, `lineitem`.`L_SHIPDATE`, `lineitem`.`L_COMMITDATE`, `lineitem`.`L_RECEIPTDATE`, `lineitem`.`L_SHIPINSTRUCT`, `lineitem`.`L_SHIPMODE`, `lineitem`.`L_COMMENT`, `orders`.`O_ORDERKEY`, `orders`.`O_CUSTKEY`, `orders`.`O_ORDERSTATUS`, `orders`.`O_TOTALPRICE`, `orders`.`O_ORDERDATE`, `orders`.`O_ORDERPRIORITY`, `orders`.`O_CLERK`, `orders`.`O_SHIPPRIORITY`, `orders`.`O_COMMENT` FROM `lineitem` AS `lineitem` INNER JOIN `orders` AS `orders` ON (`lineitem`.`L_LINENUMBER` = `orders`.`O_ORDERKEY`)") |
 ```
 
-示例3也是典型的两张表做关联，由于两表分区键对齐，所有join下推到各个分片的DN来执行，上层的CN节点只需要通过Gather算子将DN返回的结果汇总输出。
+Example 3 is also a typical association between two tables. Since the partition keys of the two tables are aligned, all joins are pushed down to the DN of each shard for execution. The upper-level CN ​​node only needs to summarize and output the results returned by the DN through the Gather operator.
 
-**示例4** 
+**Example 4**
 
 
 
@@ -248,13 +248,13 @@ mysql> explain select * from gsi_dml_unique_multi_index_base where integer_test=
 | HitCache:true
 ```
 
-这个例子很有意思，SQL本身只是带有谓词的简单查询，结果从执行计划看是两表做关联(BKAJoin)。主要是gsi_dml_unique_multi_index_base在列上integer_test有全局二级索引，命中索引可以减少扫描代价，但这个索引并不是覆盖索引，所以需要有回表操作。
+This example is very interesting. SQL itself is just a simple query with predicates. From the execution plan, the result is an association between two tables (BKAJoin). The main reason is that gsi_dml_unique_multi_index_base has a global secondary index on the integer_test column. Hitting the index can reduce the scanning cost, but this index is not a covering index, so a table return operation is required.
 
-* IndexScan: 根据integer_test=1扫描出索引表gsi_dml_unique_multi_index_index1_a0ol_01数据。
+* IndexScan: Scan the index table gsi_dml_unique_multi_index_index1_a0ol_01 data according to integer_test=1.
 
-* BKAJoin: 收集IndexScan的结果，通过该算子和主表gsi_dml_unique_multi_index_base做回表关联，获取其他列值。
+* BKAJoin: Collect the results of IndexScan, and associate the operator with the main table gsi_dml_unique_multi_index_base to obtain other column values.
 
 
-关于BKAJoin更多的介绍可以查看[《分布式数据库如何实现 Join》](https://zhuanlan.zhihu.com/p/363151441) 。
+For more information about BKAJoin, please refer to ["How to Implement Join in Distributed Databases"](https://zhuanlan.zhihu.com/p/363151441).
 
-**说明** 通常情况下，通过查询执行计划，可以查看到是否命中了全局二级索引等信息。但是对于下推部分的SQL，还可以通过explain execute 指令，获取物理SQL在DN上的执行情况，比如是否命中了DN的局部索引。
+**Note** Usually, by querying the execution plan, you can check whether the global secondary index is hit or not. But for the pushed-down part of the SQL, you can also use the explain execute command to obtain the execution status of the physical SQL on the DN, such as whether the local index of the DN is hit.

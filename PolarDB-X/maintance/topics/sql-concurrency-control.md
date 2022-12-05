@@ -1,312 +1,312 @@
-SQL限流 
+SQL throttling
 ==========================
 
-为应对突发的数据库请求流量、资源消耗过高的语句访问以及SQL访问模型的变化等问题，PolarDB-X提供了节点级别的SQL限流功能来限制造成上述问题的SQL执行，从而保证实例的持续稳定运行。本文介绍如何使用SQL限流功能。
+In order to deal with problems such as sudden database request traffic, statement access with high resource consumption, and changes in the SQL access model, PolarDB-X provides a node-level SQL current limiting function to limit the execution of SQL that causes the above problems, thereby ensuring instance security. Continuous and stable operation. This article describes how to use the SQL current limiting function.
 
-创建限流规则 
+Create a throttling rule
 ---------------------------
 
-* **语法**
+* **grammar**
 
-  ```sql
-  CREATE CCL_RULE [ IF NOT EXISTS ] `ccl_rule_name`
-  ON `database`.`table`
-  TO '<usename>'@'<host>'
-  FOR { UPDATE | SELECT | INSERT | DELETE }
-  [ filter_options ]
-  with_options
-  filter_options:
-      [ FILTER  BY KEYWORD('KEYWORD1', 'KEYWORD2',...) ]
-      [ FILTER  BY TEMPLATE('template_id') ]
-   with_options:
-      WITH MAX_CONCURRENCY = value1 [ , WAIT_QUEUE_SIZE = value2 ] [ , WAIT_TIMEOUT = value3 ] [ ,FAST_MATCH = { 0 , 1 }]
-  ```
+```sql
+CREATE CCL_RULE [ IF NOT EXISTS ] `ccl_rule_name`
+ON `database`.`table`
+TO '<usename>'@'<host>'
+FOR { UPDATE | SELECT | INSERT | DELETE }
+[ filter_options ]
+with_options
+filter_options:
+[ FILTER  BY KEYWORD('KEYWORD1', 'KEYWORD2',...) ]
+[ FILTER  BY TEMPLATE('template_id') ]
+with_options:
+WITH MAX_CONCURRENCY = value1 [ , WAIT_QUEUE_SIZE = value2 ] [ , WAIT_TIMEOUT = value3 ] [ ,FAST_MATCH = { 0 , 1 }]
+```
 
-  
 
-  |                       参数                        || 是否必选 |                                                                                                                                                                                                                                                                                                                                                                                                                                                                           说明                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-  |------------|-------------------------------------|------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-  | 限流规则匹配参数   | ```ccl_rule_name```                 | 必选   | 限流规则的名称。 **说明** 为避免名称与SQL关键字冲突，建议在规则名称前后各加一个反引号（\`）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-  | 限流规则匹配参数   | ```database`.`table```              | 必选   | 数据库和数据表的名称，支持使用星号（\*）表示任意匹配。 **说明** 为避免名称与SQL关键字冲突，建议在库表名称前后各加一个反引号（\`）。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-  | 限流规则匹配参数   | `'<usename>'@'<host>'`              | 必选   | 账号名称。其中Host部分支持用百分号（%）来表示任意匹配。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-  | 限流规则匹配参数   | `UPDATE | SELECT | INSERT | DELETE` | 必选   | SQL语句类型。当前支持UPDATE、SELECT、INSERT和DELETE类型。 **说明** 每条限流规则仅支持传入一种类型的SQL语句。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-  | 限流规则匹配参数   | `[ filter_options ]`                | 可选   | 过滤条件，支持包括如下两种条件： * 关键词（KEYWORD）：查看限流规则时，关键词列表会在查询结果中被转化为`["kwd1","kw2","kw3"...]`的字符串形式，最多支持512个字符。 **说明** * 若关键字是SQL语句中的参数值，匹配时大小写敏感。  * 若关键字是SQL语句中的其他词，匹配时大小写不敏感。     * 模版（TEMPLATE）：模版编号是SQL日志中的`sql_code`值，该值是参数化后的SQL语句（SQL模版）以16进制表示的哈希值。您可以通过SHOW FULL PROCESSLIST和EXPLAIN命令查看模版编号。                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-  | 限流规则行为控制参数 | ` with_options`                     | 必选   | WITH选项中支持如下4个参数来控制限流规则的行为： * MAX_CONCURRENCY：匹配到该限流规则的SQL语句的最大并发度，超过后进入等待队列。 取值范围：\[0\~2^31^ - 1\]，默认值为0。   * WAIT_QUEUE_SIZE：超过并发度后的最大等待队列长度。当等待队列长度超过该值后，SQL语句将报错。在队列中的语句仍然占用了线程资源，排队过多时也可能导致内存耗尽。 取值范围：\[0\~2^31^ - 1\]，默认值为0。   * WAIT_TIMEOUT：SQL语句在等待队列中的最长等待时间，超过该等待时间后，SQL语句将报错。 取值范围：\[0\~2^31^ - 1\]，单位为秒，默认值为600。   * FAST_MATCH：是否开启Cache来加速匹配。开启后，PolarDB-X 2.0会将模版编号作为Cache key的一部分，匹配结果作为value进行缓存，来加速匹配速度。 取值范围：0表示关闭，1表示开启，默认开启。    **说明** * 创建限流规则时，需从上述4个行为控制参数中至少选择一个传入。  * 当MAX_CONCURRENCY为默认值（0）时，可能会使匹配到的所有SQL返回错误。此时，建议您显式指定该参数为非0的值。  * PolarDB-X 2.0是分布式云原生数据库，计算层由多个节点组成，因此每个节点的并发度之和是整个实例的并发数最大值。在负载不均衡的情况下，整个实例的受限制SQL并发数可能无法达到最大并发数。   |
-  [参数说明]
 
-  
-  **说明** 仅当一个SQL语句满足所有的匹配参数条件时，才会根据该规则的WITH选项进行限流。
-  
+| Parameter || Mandatory | Description |
+|------------|-------------------------------------|------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Current limiting rule matching parameters | ```ccl_rule_name``` | Mandatory | The name of the current limiting rule. **Note** In order to avoid conflicts between names and SQL keywords, it is recommended to add a backtick (\`) before and after the rule name |
+| Matching parameters of the current limiting rule | ```database`.`table``` | Mandatory | The name of the database and data table, an asterisk (\*) is supported to indicate any match. **Note** To avoid name conflicts with SQL keywords, it is recommended to add a backtick (\`) before and after the database table name. |
+| Matching parameters of current limiting rules | `'<usename>'@'<host>'` | Required | Account name. The Host part supports the use of a percent sign (%) to indicate any match. |
+| Matching parameters of current limiting rules | `UPDATE | SELECT | INSERT | DELETE` | Mandatory | SQL statement type. Currently UPDATE, SELECT, INSERT and DELETE types are supported. **Note** Each rate limiting rule supports only one type of SQL statement. |
+| Matching parameters of current limiting rules | `[ filter_options ]` | Optional | Filtering conditions, including the following two conditions are supported: * Keyword (KEYWORD): When viewing the current limiting rules, the keyword list will be converted into The string format of `["kwd1","kw2","kw3"...]` supports up to 512 characters. **Description** * If the keyword is a parameter value in an SQL statement, the match is case-sensitive. * If the keyword is another word in the SQL statement, the matching is case-insensitive. * Template (TEMPLATE): The template number is the `sql_code` value in the SQL log, which is the hash value of the parameterized SQL statement (SQL template) expressed in hexadecimal. You can view the template ID with the SHOW FULL PROCESSLIST and EXPLAIN commands. |
+| Current-limiting rule behavior control parameters | `with_options` | Mandatory | The WITH option supports the following 4 parameters to control the behavior of the current-limiting rule: * MAX_CONCURRENCY: the maximum concurrency of SQL statements matching the current-limiting rule, after exceeding Enter the waiting queue. Value range: \[0\~2^31^ - 1\], the default value is 0. * WAIT_QUEUE_SIZE: The maximum waiting queue length after exceeding the concurrency. When the waiting queue length exceeds this value, the SQL statement will report an error. Statements in the queue still occupy thread resources, and may also cause memory exhaustion when there are too many queues. Value range: \[0\~2^31^ - 1\], the default value is 0. * WAIT_TIMEOUT: The maximum waiting time of the SQL statement in the waiting queue. After the waiting time is exceeded, the SQL statement will report an error. Value range: \[0\~2^31^ - 1\], the unit is second, and the default value is 600. * FAST_MATCH: Whether to enable Cache to speed up matching. After it is enabled, PolarDB-X 2.0 will use the template number as part of the Cache key, and the matching result as the value to cache to speed up the matching speed. Value range: 0 means off, 1 means on, and the default is on. **Description** * When creating a traffic limiting rule, at least one of the above four behavior control parameters needs to be selected and passed in. * When MAX_CONCURRENCY is the default value (0), it may cause all matched SQL to return an error. At this point, it is recommended that you explicitly specify a value other than 0 for this parameter. * PolarDB-X 2.0 is a distributed cloud-native database. The computing layer consists of multiple nodes, so the sum of the concurrency of each node is the maximum concurrency of the entire instance. In the case of unbalanced load, the limited SQL concurrency of the entire instance may not reach the maximum concurrency. |
+[Parameter Description]
 
-* **限流结果**
 
-  一条SQL匹配到该规则后，根据限流规则中WITH选项里配置的参数，会出现如下几种结果：
-  * **RUN（可运行）**
+**Description** Only when an SQL statement satisfies all the matching parameter conditions, the traffic will be limited according to the WITH option of the rule.
 
-    若并发度还未达到最大并发度（即MAX_CONCURRENCY参数值），该SQL正常执行不会被限流。
-    
-  
-  * **WAIT（等待中）**
 
-    若并发度已经达到最大并发度，但等待队列长度还未达到最大长度（即WAIT_QUEUE_SIZE参数值），该SQL进入等待状态，直到进入可运行（RUN）状态，或者等待超时（WAIT_TIMEOUT）状态。
+* **Current limit result**
 
-    您可以通过如下命令查看由于匹配到限流规则而等待的SQL语句：
+After a SQL matches the rule, according to the parameters configured in the WITH option in the current limiting rule, the following results will appear:
+* **RUN (runnable)**
 
-    ```sql
-    mysql> SHOW FULL PROCESSLIST;
-    ```
+If the concurrency degree has not reached the maximum concurrency degree (that is, the MAX_CONCURRENCY parameter value), the normal execution of the SQL will not be restricted.
 
-    
 
-    返回结果示例如下：
+* **WAIT (waiting)**
 
-    ```sql
-    +----+---------------+-----------------+----------+-------------------------------+------+-------+-----------------------+-----------------+
-    | ID | USER          | HOST            | DB       | COMMAND                       | TIME | STATE | INFO                  | SQL_TEMPLATE_ID |
-    +----+---------------+-----------------+----------+-------------------------------+------+-------+-----------------------+-----------------+
-    |  2 | polardbx_root | ***.*.*.*:62787 | polardbx | Query                         |    0 |       | show full processlist | NULL            |
-    |  1 | polardbx_root | ***.*.*.*:62775 | polardbx | Query(Waiting-selectrulereal) |   12 |       | select 1              | 9037e5e2        |
-    +----+---------------+-----------------+----------+-------------------------------+------+-------+-----------------------+-----------------+
-    2 rows in set (0.08 sec)
-    ```
+If the concurrency has reached the maximum concurrency, but the waiting queue length has not reached the maximum length (that is, the WAIT_QUEUE_SIZE parameter value), the SQL enters the waiting state until it enters the runnable (RUN) state, or waits for a timeout (WAIT_TIMEOUT) state.
 
-    
+You can run the following command to view the waiting SQL statements that match the current limiting rule:
 
-    从上述查询结果可以看出：SQL语句`select 1`由于限流规则`selectrulereal`而处于等待（Waiting）状态。
-    
-  
-  * **WAIT_TIMEOUT（等待超时）**
+```sql
+mysql> SHOW FULL PROCESSLIST;
+```
 
-    SQL语句进入等待状态后，当等待时间超过最长等待时间（即WAIT_TIMEOUT参数值）时，该语句将会返回错误。
 
-    例如，设置了一条最长等待时间为10秒的限流规则，执行`SELECT sleep(11)`语句时会因为等待超时而报错，示例如下：
 
-    ```sql
-    ERROR 3009 (HY000): [11a07e23fd800000][30.225.180.55:8527][polardbx]Exceeding the max concurrency 0 of ccl rule selectrulereal after waiting for 10060 ms
-    ```
+An example of the returned result is as follows:
 
-    
-  
-  * **KILL（结束）**
+```sql
++----+---------------+-----------------+----------+-------------------------------+------+-------+-----------------------+-----------------+
+| ID | USER          | HOST            | DB       | COMMAND                       | TIME | STATE | INFO                  | SQL_TEMPLATE_ID |
++----+---------------+-----------------+----------+-------------------------------+------+-------+-----------------------+-----------------+
+|  2 | polardbx_root | ***.*.*.*:62787 | polardbx | Query                         |    0 |       | show full processlist | NULL            |
+|  1 | polardbx_root | ***.*.*.*:62775 | polardbx | Query(Waiting-selectrulereal) |   12 |       | select 1              | 9037e5e2        |
++----+---------------+-----------------+----------+-------------------------------+------+-------+-----------------------+-----------------+
+2 rows in set (0.08 sec)
+```
 
-    并发度和等待队列长度均已经达到最大值，客户端将收到提示超过最大并发度的报错，报错信息中会包含匹配上的限流规则的名称。
 
-    例如，在并发度和等待队列长度均已经达到最大值后执行`SELECT 1;`命令，会出现如下报错：
 
-    ```sql
-    ERROR 3009 (HY000): [11a07c4425c00000][**.***.***.**:8527][polardbx]Exceeding the max concurrency 0 of ccl rule selectrulereal
-    ```
+From the above query results, it can be seen that the SQL statement `select 1` is in the waiting (Waiting) state due to the current limiting rule `selectrulereal`.
 
-    
 
-    上述结果表示：该SQL语句`SELECT 1;`由于超出了限流规则`selectrulereal`设置的最大并发度而执行失败。
-    
-  
+* **WAIT_TIMEOUT (wait for timeout)**
 
-  
+After the SQL statement enters the waiting state, if the waiting time exceeds the maximum waiting time (that is, the value of the WAIT_TIMEOUT parameter), the statement will return an error.
 
-  
+For example, if a current limiting rule with a maximum waiting time of 10 seconds is set, an error will be reported when the `SELECT sleep(11)` statement is executed due to waiting timeout. The example is as follows:
 
-* **示例**
+```sql
+ERROR 3009 (HY000): [11a07e23fd800000][30.225.180.55:8527][polardbx]Exceeding the max concurrency 0 of ccl rule selectrulereal after waiting for 10060 ms
+```
 
-  假设需要创建一条名为`selectrule`的规则，用于限制由`'ccltest'@'%'`用户发起的，包含`cclmatched`关键字的，且对任意表执行SELECT操作的SQL语句，同时将最大并发度设置为10。
 
-  规则创建语句如下：
 
-  ```sql
-  CREATE CCL_RULE IF NOT EXISTS `selectrule` ON *.* TO 'ccltest'@'%'
-  FOR SELECT
-  FILTER BY KEYWORD('cclmatched')
-  WITH MAX_CONCURRENCY=10;
-  ```
+* **KILL (end)**
 
-  
+Both the concurrency degree and the waiting queue length have reached the maximum value, and the client will receive an error message indicating that the maximum concurrency degree has been exceeded. The error message will include the name of the matching current limiting rule.
+
+For example, when the `SELECT 1;` command is executed after the concurrency and waiting queue length have reached the maximum value, the following error will appear:
+
+```sql
+ERROR 3009 (HY000): [11a07c4425c00000][**.***.***.**:8527][polardbx]Exceeding the max concurrency 0 of ccl rule selectrulereal
+```
+
+
+
+The above results indicate that the execution of the SQL statement `SELECT 1;` failed because it exceeded the maximum concurrency set by the current limiting rule `selectrulereal`.
 
 
 
 
-查看限流规则 
+
+
+
+* **Example**
+
+Suppose you need to create a rule named `selectrule`, which is used to restrict the SQL statement initiated by the `'ccltest'@'%'` user, which contains the `cclmatched` keyword, and executes the SELECT operation on any table. The maximum concurrency is set to 10.
+
+The rule creation statement is as follows:
+
+```sql
+CREATE CCL_RULE IF NOT EXISTS `selectrule` ON *.* TO 'ccltest'@'%'
+FOR SELECT
+FILTER BY KEYWORD('cclmatched')
+WITH MAX_CONCURRENCY=10;
+```
+
+
+
+
+
+
+View current limiting rules
 ---------------------------
 
-* **语法**
-  * **查看指定限流规则**
+* **grammar**
+* **View the specified current limiting rules**
 
-    语法如下：
+The syntax is as follows:
 
-    ```sql
-    SHOW CCL_RULE `ccl_rule_name1` [, `ccl_rule_name2` ]
-    ```
+```sql
+SHOW CCL_RULE `ccl_rule_name1` [, `ccl_rule_name2` ]
+```
 
-    
-  
-  * **查看所有限流规则**
 
-    语法如下：
 
-    ```sql
-    SHOW CCL_RULES
-    ```
+* **View all throttling rules**
 
-    
-  
+The syntax is as follows:
 
-  
-
-* **示例**
-
-  使用如下命令查看当前数据库下所有的限流规则：
-
-  ```sql
-  mysql> SHOW CCL_RULES \G
-  ```
-
-  
-
-  返回结果如下：
-
-  ```sql
-  *************************** 1. row ***************************
-                       NO.: 1
-                 RULE_NAME: selectrulereal
-                   RUNNING: 2
-                   WAITING: 29
-                    KILLED: 0
-           MATCH_HIT_CACHE: 21374
-               TOTAL_MATCH: 21406
-         ACTIVE_NODE_COUNT: 2
-  MAX_CONCURRENCY_PER_NODE: 1
-  WAIT_QUEUE_SIZE_PER_NODE: 100
-              WAIT_TIMEOUT: 600
-                FAST_MATCH: 1
-                  SQL_TYPE: SELECT
-                      USER: ccltest@%
-                     TABLE: *.*
-                  KEYWORDS: ["SELECT"]
-                TEMPLATEID: NULL
-              CREATED_TIME: 2020-11-26 17:04:08
-  ```
-
-  
-
-  |            参数            |                            说明                             |
-  |--------------------------|-----------------------------------------------------------|
-  | NO.                      | 匹配优先级，数字越小，优先级越高。                                         |
-  | RULE_NAME                | 限流规则名称。                                                   |
-  | RUNNING                  | 匹配到该限流规则且正常执行的SQL语句数量。                                    |
-  | WAITING                  | 匹配到该限流规则且正在等待队列里的查询数量。                                    |
-  | KILLED                   | 匹配到该限流规则且被KILL的SQL语句数量。                                   |
-  | MATCH_HIT_CACHE          | 匹配到该限流规则且命中Cache的SQL语句数量。                                 |
-  | TOTAL_MATCH              | 匹配到该限流规则的总次数。                                             |
-  | ACTIVE_NODE_COUNT        | 计算层中启用了SQL限流的节点数。                                         |
-  | MAX_CONCURRENCY_PER_NODE | 每个计算节点的并发度。                                               |
-  | WAIT_QUEUE_SIZE_PER_NODE | 每个计算节点上等待队列的最大长度。                                         |
-  | WAIT_TIMEOUT             | SQL语句在等待队列的最大等待时间。                                        |
-  | FAST_MATCH               | 是否启动缓存加速匹配速度。                                             |
-  | SQL_TYPE                 | SQL语句类型。                                                  |
-  | USER                     | 用户名。                                                      |
-  | TABLE                    | 数据库表。                                                     |
-  | KEYWORDS                 | 关键词列表。                                                    |
-  | TEMPLATEID               | SQL模版的编号。                                                 |
-  | CREATED_TIME             | 创建时间（本地时间），格式为`yyyy-MM-dd HH:mm:ss`。 |
-  [参数说明]
-
-  
-
-  
+```sql
+SHOW CCL_RULES
+```
 
 
 
 
-删除限流规则 
+
+
+* **Example**
+
+Use the following command to view all current limiting rules under the current database:
+
+```sql
+mysql> SHOW CCL_RULES \G
+```
+
+
+
+The returned results are as follows:
+
+```sql
+*************************** 1. row ***************************
+NO.: 1
+RULE_NAME: selectrulereal
+RUNNING: 2
+WAITING: 29
+KILLED: 0
+MATCH_HIT_CACHE: 21374
+TOTAL_MATCH: 21406
+ACTIVE_NODE_COUNT: 2
+MAX_CONCURRENCY_PER_NODE: 1
+WAIT_QUEUE_SIZE_PER_NODE: 100
+WAIT_TIMEOUT: 600
+FAST_MATCH: 1
+SQL_TYPE: SELECT
+USER: ccltest@%
+TABLE: *.*
+KEYWORDS: ["SELECT"]
+TEMPLATEID: NULL
+CREATED_TIME: 2020-11-26 17:04:08
+```
+
+
+
+| parameter | description |
+|--------------------------|-----------------------------------------------------------|
+| NO. | Matching priority, the smaller the number, the higher the priority. |
+| RULE_NAME | The name of the current limiting rule. |
+| RUNNING | The number of SQL statements that match the current limiting rule and are executed normally. |
+| WAITING | The number of queries that match the throttling rule and are waiting in the queue. |
+| KILLED | The number of SQL statements that match the current limiting rule and are KILLed. |
+| MATCH_HIT_CACHE | The number of SQL statements that match the current limiting rule and hit the cache. |
+| TOTAL_MATCH | The total number of matches to this rate limiting rule. |
+| ACTIVE_NODE_COUNT | The number of nodes in the compute tier with SQL throttling enabled. |
+| MAX_CONCURRENCY_PER_NODE | Concurrency per compute node. |
+| WAIT_QUEUE_SIZE_PER_NODE | The maximum length of the wait queue on each compute node. |
+| WAIT_TIMEOUT | The maximum waiting time for SQL statements in the waiting queue. |
+| FAST_MATCH | Whether to enable caching to speed up matching. |
+| SQL_TYPE | SQL statement type. |
+| USER | username. |
+| TABLE | A database table. |
+| KEYWORDS | List of keywords. |
+| TEMPLATEID | The ID of the SQL template. |
+| CREATED_TIME | Creation time (local time) in `yyyy-MM-dd HH:mm:ss` format. |
+[Parameter Description]
+
+
+
+
+
+
+
+
+Delete the throttling rule
 ---------------------------
 
-**说明** 被删除的限流规则会立即失效，此时该规则下等待队列中的SQL语句全部会被正常执行。
+**Note** The deleted current limiting rule will be invalid immediately, and all the SQL statements in the waiting queue under this rule will be executed normally.
 
-* 删除指定限流规则：
+* Delete the specified current limiting rule:
 
-  ```sql
-  DROP CCL_RULE [ IF EXISTS ] `ccl_rule_name1` [, `ccl_rule_name2`, ...]
-  ```
+```sql
+DROP CCL_RULE [ IF EXISTS ] `ccl_rule_name1` [, `ccl_rule_name2`, ...]
+```
 
-  
 
-* 删除所有限流规则：
 
-  ```sql
-  CLEAR CCL_RULES
-  ```
+* Delete all throttling rules:
 
-  
+```sql
+CLEAR CCL_RULES
+```
 
 
 
 
-慢SQL限流 
+
+
+Slow SQL throttling
 ---------------------------
 
-* 一键开启按语句类型分，默认为SELECT类型，相同语句类型的命令，有更新作用。语法结构如下：
+* One-click opening is classified according to the statement type, the default is the SELECT type, and the commands of the same statement type have an update function. The grammatical structure is as follows:
 
-  ```sql
-  SLOW_SQL_CCL GO [ SQL_TYPE [MAX_CONCURRENCY] [SLOW_SQL_TIME] [MAX_CCL_RULE]]
-  ```
+```sql
+SLOW_SQL_CCL GO [ SQL_TYPE [MAX_CONCURRENCY] [SLOW_SQL_TIME] [MAX_CCL_RULE]]
+```
 
-  
-  * SQL_TYPE取值：ALL，SELECT，UPDATE，INSERT，默认为SELECT。
-  
-  * MAX_CONCURRENCY默认值为CPU核数的一半。
-  
-  * SLOW_SQL_TIME默认值为系统参数SLOW_SQL_TIME的值。
-  
-  * MAX_CCL_RULE的默认值为1000。
-  
 
-  动作：
-  <!-- -->
+* SQL_TYPE value: ALL, SELECT, UPDATE, INSERT, the default is SELECT.
 
-  * 遍历整个实例的session，识别出该语句类型慢SQL的TemlateId。
-  
-  * 创建针对慢SQL的限流触发器，名称为：_SYSTEM_SLOW_SQL_CCL_TRIGGER_{SQL_TYPE}_。
-  
-  * 传递慢SQL的TemplateId给限流触发器，由限流触发器创建限流规则。
-  
-  * Kill所有该语句类型的慢TemplateId查询。
-  
+* The default value of MAX_CONCURRENCY is half of the number of CPU cores.
 
-  
+* The default value of SLOW_SQL_TIME is the value of the system parameter SLOW_SQL_TIME.
 
-* 一键关闭删除由SLOW_SQL_CCL创建的限流触发器，连带着会删除由限流触发器创建的限流规则。语法结构如下：
+* The default value of MAX_CCL_RULE is 1000.
 
-  ```sql
-  SLOW_SQL_CCL BACK
-  ```
 
-  
+action:
+<!-- -->
 
-* 查看限流情况。语法结构如下：
+* Traverse the session of the entire instance, and identify the TemlateId of the slow SQL of the statement type.
 
-  ```sql
-  SLOW_SQL_CCL SHOW
-  ```
+* Create a current-limiting trigger for slow SQL, named: _SYSTEM_SLOW_SQL_CCL_TRIGGER_{SQL_TYPE}_.
 
-  plan_cache和ccl_rules里以模版ID作为join key的一次inner join。
+* Pass the TemplateId of the slow SQL to the current limiting trigger, and the current limiting trigger will create a current limiting rule.
 
-* ![查看限流情况](../images/p333269.png)
+* Kill all slow TemplateId queries of this statement type.
 
-* 如何干预慢SQL的阈值？
-  * 设置SLOW_SQL_CCL GO中的语法。
-  
-  * 在一键开启SQL限流之前，设置用户变量slow_sql_time。如下：
 
-    ```sql
-    set @slow_sql_time=2000;
-    slow_sql_ccl go;
-    ```
-  
-  
 
-  
-  **说明** 后面的设置方式会被前面的设置方式所覆盖。
-  
+
+* One-click shutdown deletes the current limit trigger created by SLOW_SQL_CCL, and the current limit rule created by the current limit trigger will also be deleted. The grammatical structure is as follows:
+
+```sql
+SLOW_SQL_CCL BACK
+```
+
+
+
+* Check current limit situation. The grammatical structure is as follows:
+
+```sql
+SLOW_SQL_CCL SHOW
+```
+
+An inner join with the template ID as the join key in plan_cache and ccl_rules.
+
+* ![Check current limit situation](../images/p333269.png)
+
+* How to intervene the threshold of slow SQL?
+* Set syntax in SLOW_SQL_CCL GO.
+
+* Set the user variable slow_sql_time before enabling SQL current limiting with one click. as follows:
+
+```sql
+set @slow_sql_time=2000;
+slow_sql_ccl go;
+```
+
+
+
+
+**Description** The following setting methods will be overwritten by the previous setting methods.
+
 
 
 

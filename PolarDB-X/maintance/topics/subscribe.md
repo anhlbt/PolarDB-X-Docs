@@ -1,25 +1,25 @@
-# PolarDB-X CDC数据订阅
+# PolarDB-X CDC data subscription
 
-PolarDB-X CDC兼容标准Binlog协议，可以把它当做一个单机版的MySQL来使用，现支持Kafka、Flink等主流消息队列、流计算引擎、日志服务订阅。
+PolarDB-X CDC is compatible with the standard Binlog protocol, and can be used as a stand-alone version of MySQL. It now supports mainstream message queues, stream computing engines, and log service subscriptions such as Kafka and Flink.
 
 ![Subscribe All](../images/subscribe_all.png)
 
-### 已支持下游订阅的类型
+### Supported downstream subscription types
 
-- 数据库：
-  - MySQL
-  - PolarDB-X
-  - 其他支持MySQL协议数据库
-- 订阅组件：
-  - Canal
-  - Debezium
-  - MaxWell
-- 流计算引擎：
-  - Flink
-- 消息队列：
-  - rocketMQ
-  - rabbitMQ
-  - Kafka
-- 日志服务：
-  - Elasticsearch
-  - Kibana
+- database:
+- MySQL
+- PolarDB-X
+- Other databases that support the MySQL protocol
+- Subscription component:
+- Canal
+- Debezius
+- MaxWell
+- Flow computing engine:
+- Considerable
+- message queue:
+- rocketMQ
+- rabbitMQ
+- Kafka
+- Log service:
+- Elasticsearch
+- Kibana

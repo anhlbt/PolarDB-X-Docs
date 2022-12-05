@@ -1,63 +1,63 @@
-查询执行器介绍 
+Introduction to query executors
 ============================
 
-本文介绍PolarDB-X的SQL执行器如何执行SQL中无法下推的部分。
+This article describes how PolarDB-X's SQL executor executes parts of SQL that cannot be pushed down.
 
-基本概念 
+basic concept
 -------------------------
 
-SQL执行器是PolarDB-X中执行逻辑层算子的组件。对于简单的点查SQL，往往可以整体下推存储层MySQL执行，因而感觉不到执行器的存在，MySQL的结果经过简单的解包封包又被回传给用户。但是对于较复杂的SQL，往往无法将SQL中的算子全部下推，这时候就需要PolarDB-X执行器执行无法下推的计算。
+The SQL executor is a component that executes logical layer operators in PolarDB-X. For simple query SQL, MySQL execution can often be pushed down to the storage layer as a whole, so the existence of the executor is not felt, and the MySQL result is simply unpacked and sent back to the user. However, for more complex SQL, it is often impossible to push down all the operators in SQL. At this time, the PolarDB-X executor is required to perform calculations that cannot be pushed down.
 
 ```sql
 SELECT l_orderkey, sum(l_extendedprice *(1 - l_discount)) AS revenue
 FROM CUSTOMER, ORDERS, LINEITEM
 WHERE c_mktsegment = 'AUTOMOBILE'
-  and c_custkey = o_custkey
-  and l_orderkey = o_orderkey
-  and o_orderdate < '1995-03-13'
-  and l_shipdate > '1995-03-13'
+and c_custkey = o_custkey
+and l_orderkey = o_orderkey
+and o_orderdate < '1995-03-13'
+and l_shipdate > '1995-03-13'
 GROUP BY l_orderkey;
 ```
 
-通过EXPLAIN命令看到PolarDB-X的执行计划如下：
+The execution plan of PolarDB-X seen through the EXPLAIN command is as follows:
 
 ```sql
 HashAgg(group="l_orderkey", revenue="SUM(*)")
-  HashJoin(condition="o_custkey = c_custkey", type="inner")
-    Gather(concurrent=true)
-      LogicalView(tables="ORDERS_[0-7],LINEITEM_[0-7]", shardCount=8, sql="SELECT `ORDERS`.`o_custkey`, `LINEITEM`.`l_orderkey`, (`LINEITEM`.`l_extendedprice` * (? - `LINEITEM`.`l_discount`)) AS `x` FROM `ORDERS` AS `ORDERS` INNER JOIN `LINEITEM` AS `LINEITEM` ON (((`ORDERS`.`o_orderkey` = `LINEITEM`.`l_orderkey`) AND (`ORDERS`.`o_orderdate` < ?)) AND (`LINEITEM`.`l_shipdate` > ?))")
-    Gather(concurrent=true)
-      LogicalView(tables="CUSTOMER_[0-7]", shardCount=8, sql="SELECT `c_custkey` FROM `CUSTOMER` AS `CUSTOMER` WHERE (`c_mktsegment` = ?)")
+HashJoin(condition="o_custkey = c_custkey", type="inner")
+Gather(concurrent=true)
+LogicalView(tables="ORDERS_[0-7],LINEITEM_[0-7]", shardCount=8, sql="SELECT `ORDERS`.`o_custkey`, `LINEITEM`.`l_orderkey`, (`LINEITEM`.`l_extendedprice` * (? - `LINEITEM`.`l_discount`)) AS `x` FROM `ORDERS` AS `ORDERS` INNER JOIN `LINEITEM` AS `LINEITEM` ON (((`ORDERS`.`o_orderkey` = `LINEITEM`.`l_orderkey`) AND (`ORDERS`.`o_orderdate` < ?)) AND (`LINEITEM`.`l_shipdate` > ?))")
+Gather(concurrent=true)
+LogicalView(tables="CUSTOMER_[0-7]", shardCount=8, sql="SELECT `c_custkey` FROM `CUSTOMER` AS `CUSTOMER` WHERE (`c_mktsegment` = ?)")
 ```
 
 
 
-如下图所示，LogicalView的SQL在执行时被下发给MySQL，而不能下推的部分（除LogicalView以外的算子）由PolarDB-X执行器进行计算，得到最终用户SQL需要的结果。
+As shown in the figure below, LogicalView SQL is sent to MySQL during execution, and the parts that cannot be pushed down (operators other than LogicalView) are calculated by the PolarDB-X executor to obtain the results required by the end user SQL.
 
-![执行器计算](../images/p333378.png)
+![Executor calculation](../images/p333378.png)
 
-执行模型 
+execution model
 -------------------------
 
-与传统数据库采用Volcano执行模型不一样，PolarDB-X采样的是Pull\~Push混合执行模型。所有算子按照计算过程中是否需要缓存临时表，将执行过程切分成多个pipeline，pipeline内部采样next()接口，按批获取数据，完成在pipeline内部的计算，pipeline间采用push接口，上游pipeline在计算完成后，会将数据源源不断推送给下游pipeline做计算。下面的例子中，被切分成两个pipeline，在pipeline-A中扫描Table-A数据，完成构建哈希表。Pipeline-B扫描Table-B的数据，然后在HashJoin算子内部做关联得到JOIN结果，再返回客户端。
+Unlike traditional databases that use the Volcano execution model, PolarDB-X samples a Pull\~Push hybrid execution model. All operators divide the execution process into multiple pipelines according to whether they need to cache temporary tables during the calculation process. The next() interface is sampled inside the pipeline, and the data is obtained in batches to complete the calculation inside the pipeline. The push interface is used between pipelines, and the upstream pipeline After the calculation is completed, the data will be continuously pushed to the downstream pipeline for calculation. In the following example, it is divided into two pipelines, and Table-A data is scanned in pipeline-A to complete the construction of the hash table. Pipeline-B scans the data of Table-B, and then associates within the HashJoin operator to obtain the JOIN result, and then returns it to the client.
 
-![执行模型](../images/p333381.png)
+![execution model](../images/p333381.png)
 
-执行模式 
+execution mode
 -------------------------
 
-目前 PolarDB-X 支持了三种执行模式:
+Currently PolarDB-X supports three execution modes:
 
-* 单机单线程（TP_LOCAL）：查询过程中，是单线程计算，TP负载的查询涉及到的扫描行数比较少，往往会采用这种执行模式，比如基于主键的点查。
+* Stand-alone single-thread (TP_LOCAL): In the query process, it is a single-threaded calculation. The number of scanned rows involved in the query of TP load is relatively small, and this execution mode is often used, such as the enumeration based on the primary key.
 
-* 单机并行（AP_LOCAL）：查询过程中，会利用节点的多核资源做并行计算，如果您没有配置只读实例，针对AP负载的查询，往往会采样这种执行模式，一般也称之为Parallel Query模式。
+* Stand-alone parallel (AP_LOCAL): During the query process, the multi-core resources of the node will be used for parallel computing. If you do not configure a read-only instance, the query for AP load will often sample this execution mode, which is generally called Parallel Query model.
 
-* 多机并行（MPP）（WIP）：您如果配置了只读实例，针对AP负载的查询，可以协调只读实例上多个节点的多核做分布式多机并行加速。
-
-
+* Multi-machine Parallel (MPP) (WIP): If you configure a read-only instance, you can coordinate the multi-core of multiple nodes on the read-only instance to perform distributed multi-machine parallel acceleration for the query of AP load.
 
 
-为了准确知道执行模式，在原有EXPLAIN和执行计划的基础上，扩展了[EXPLAIN PHYSICAL](../../dev-guide/topics/explain.md)例如以下查询，通过指令可以查看当前查询采样的是MPP模式，此外还可以获取到每个执行片段的并发数。
+
+
+In order to accurately know the execution mode, [EXPLAIN PHYSICAL](../../dev-guide/topics/explain.md) is extended on the basis of the original EXPLAIN and execution plan. For example, the following query can view the current query sample through the command The MPP mode is used, and the number of concurrency of each execution segment can also be obtained.
 
 ```sql
 mysql> explain physical select a.k, count(*) cnt from sbtest1 a, sbtest1 b where a.id = b.k and a.id > 1000 group by k having cnt > 1300 or
@@ -86,7 +86,7 @@ der by cnt limit 5, 10;
 
 
 
-同样的也允许您通过`HINT EXECUTOR_MODE`指定执行模式。比如主实例空闲资源很多，可以考虑强制设置为单机或者多机并行模式来加速。
+It also allows you to specify the execution mode via `HINT EXECUTOR_MODE`. For example, the main instance has a lot of idle resources, and you can consider forcing it to be a single-machine or multi-machine parallel mode to speed up.
 
 ```sql
 mysql> explain physical /*+TDDL:EXECUTOR_MODE=AP_LOCAL*/select a.k, count(*) cnt from sbtest1 a, sbtest1 b where a.id = b.k and a.id > 1000 group by k having cnt > 1300 order by cnt limit 5, 10;                                                                                                                                                     |
@@ -116,7 +116,7 @@ mysql> explain physical /*+TDDL:EXECUTOR_MODE=AP_LOCAL*/select a.k, count(*) cnt
 
 
 
-在多机并行MPP执行模式的并发度是根据物理扫描行数、实例规格和计算所涉及到表的分表数来计算出来的，整体的并行度要考虑高并发场景，所以并行度的计算会偏保守，您可以通过上述`EXPLAIN PHYSICAL`指令查看并行度。也同样支持`HINT MPP_PARALLELISM`强制指定并行度。
+The concurrency degree in the multi-machine parallel MPP execution mode is calculated based on the number of physical scan rows, instance specifications, and the number of table sub-tables involved in the calculation. The overall degree of parallelism should consider high concurrency scenarios, so the calculation of the degree of parallelism will On the conservative side, you can check the degree of parallelism with the `EXPLAIN PHYSICAL` command above. It also supports `HINT MPP_PARALLELISM` to enforce the parallelism.
 
 ```sql
 /*+TDDL:EXECUTOR_MODE=MPP MPP_PARALLELISM=8*/select a.k, count(*) cnt from sbtest1 a, sbtest1 b where a.id = b.k and a.id > 1000 group by k having cnt > 1300 order by cnt limit 5, 10;

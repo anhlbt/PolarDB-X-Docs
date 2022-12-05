@@ -1,9 +1,9 @@
-SQL调优指南
+SQL Tuning Guide
 ==============
 
-* [调优基本概念](concepts.md)
-* [执行计划介绍](sql-plan.md)
-* [SQL调优进阶](sql-tunning-advanced.md)
-* [索引推荐](sql-advisor.md)
-* [执行计划管理](spm.md)
-* [调优方法论](tunning-methodology.md)
+* [Basic tuning concepts](concepts.md)
+* [Execution plan introduction](sql-plan.md)
+* [SQL tuning advanced](sql-tunning-advanced.md)
+* [Index recommendation](sql-advisor.md)
+* [Execution Plan Management](spm.md)
+* [tuning methodology](tunning-methodology.md)

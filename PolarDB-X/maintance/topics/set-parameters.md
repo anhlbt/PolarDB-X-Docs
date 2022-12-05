@@ -1,28 +1,28 @@
-SET语句变量设置 
+SET statement variable setting
 ==============================
 
-您可以通过SET语句设置各类变量，包括用户自定义的变量、session变量和global变量。
+You can use the SET statement to set various variables, including user-defined variables, session variables, and global variables.
 
-语法 
+grammar
 -----------------------
 
 ```sql
 SET variable = expr [, variable = expr] ...
 variable: {
-    user_var_name
-  | {GLOBAL | @@GLOBAL.} system_var_name
-  | [SESSION | @@SESSION. | @@] system_var_name
+user_var_name
+| {GLOBAL | @@GLOBAL.} system_var_name
+| [SESSION | @@SESSION. | @@] system_var_name
 }
 ```
 
 
 
-注意事项 
+Precautions
 -------------------------
 
-使用SET GLOBAL设置全局变量时，PolarDB-X会将其进行持久化，实例重启后仍然生效。此外，SET GLOBAL设置成功后，所有已有的连接都会生效。
+When using SET GLOBAL to set a global variable, PolarDB-X will persist it, and it will still take effect after the instance is restarted. In addition, after SET GLOBAL is set successfully, all existing connections will take effect.
 
-示例 
+example
 -----------------------
 
 ```sql

@@ -1,36 +1,36 @@
-# 通过 PXD 部署集群
+# Deploy the cluster via PXD
 
-PXD 是 PolarDB-X 的部署工具，除了支持在本地一键快速拉起测试环境外，也支持在 Linux 集群中通过指定的拓扑的方式部署 PolarDB-X 分布式数据库。
+PXD is a deployment tool for PolarDB-X. In addition to supporting the local one-click quick launch of the test environment, it also supports deploying the PolarDB-X distributed database in a Linux cluster through a specified topology.
 
-## 系统配置
+## System Configuration
 
-1. 在集群内的所有机器上安装 Docker，参考文档：[https://docs.docker.com/engine/install/](https://docs.docker.com/engine/install/)
-> 注：集群模式下，docker engine 版本需要大于等于18.04。
-> 安装完成后执行 `docker ps` 命令验证。如果遇到如下报错，请本小节FAQ：非root用户如何获取docker权限。
+1. Install Docker on all machines in the cluster, refer to the documentation: [https://docs.docker.com/engine/install/](https://docs.docker.com/engine/install/)
+> Note: In cluster mode, the docker engine version needs to be greater than or equal to 18.04.
+> Execute the `docker ps` command to verify after the installation is complete. If you encounter the following error, please refer to this section FAQ: How to obtain docker permissions for non-root users.
 ```text
 Got permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Get http:///var/run/docker.sock/v1.26/images/json: dial unix /var/run/docker.sock: connect: permission denied
 ```
 
-2. 集群机器建配置免密登录
-> 如果你的集群机器上已经配置过SSH免密登录，可以跳过
+2. Create and configure password-free login for cluster machines
+> If you have configured SSH password-free login on your cluster machine, you can skip it
 
 ```shell
-# 生成密钥对
+# generate key pair
 ssh-keygen -t rsa
 
-# 复制免登公钥到目标机器，修改user和ip
+# Copy the free login public key to the target machine, modify user and ip
 ssh-copy-id {user}@{ip}
 ```
-## 在部署机上安装 PXD
-选择任意一台机器作为部署机，在这台机器上安装 PXD 即可。PXD 会通过部署机在集群内创建 PolarDB-X 数据库。
+## Install PXD on the deployment machine
+Select any machine as the deployment machine, and install PXD on this machine. PXD will create a PolarDB-X database in the cluster through the deployment machine.
 
-### 准备工作
+### Preparation
 
-1.安装 Python3
+1. Install Python3
 
-> 如果你的机器上已经安装了 python3，可以跳过
-> 
-> 检查命令：`which python3`，如果有返回则代表python3已安装
+> If python3 is already installed on your machine, you can skip
+>
+> Check the command: `which python3`, if there is a return, it means that python3 is installed
 
 Red Hat, CentOS or Fedora:
 
@@ -45,130 +45,130 @@ apt-get update
 apt-get install python3.7
 ```
 
-2.创建一个 Python3 的 virtual environment 环境并激活
+2. Create a Python3 virtual environment environment and activate it
 
 ```shell
 python3 -m venv venv
 source venv/bin/activate
 ```
-> 推荐使用 virtual environment 安装 PXD 工具
+> It is recommended to use virtual environment to install PXD tools
 
 
-### 安装 PXD
-安装前建议先执行如下命令升级pip
+### Install PXD
+Before installation, it is recommended to execute the following command to upgrade pip
 
 ```shell
 pip install --upgrade pip
 ```
-执行如下命令安装 pxd: 
+Execute the following command to install pxd:
 
 ```shell
 pip install pxd
 ```
-> 注： 部分国内用户从 pypi 下载包的速度较慢, 可以使用如下命令从阿里云的镜像安装：
+> Note: Some domestic users download the package from pypi slowly, you can use the following command to install from the image of Alibaba Cloud:
 > `pip install -i http://mirrors.aliyun.com/pypi/simple/ pxd`
 
-## 准备 PolarDB-X 拓扑文件
-编写如下的 YAML 文件，指定 PolarDB-X 集群的名称以及 GMS， CN，DN 的部署节点。
+## Prepare PolarDB-X topology file
+Write the following YAML file, specify the name of the PolarDB-X cluster and the deployment node of GMS, CN, and DN.
 
-比如：总共准备了3台机器10.168.0.37、10.168.0.38、10.168.0.39
-1. 10.168.0.37，部署gms、cdc节点
-2. 10.168.0.38、10.168.0.39，部署cn/dn各两个节点。其中dn下的 host_group 表示一个dn节点多副本的部署机器，比如Paxos三副本的话需要填入三个ip
+For example: a total of 3 machines 10.168.0.37, 10.168.0.38, 10.168.0.39 are prepared
+1. 10.168.0.37, deploy gms, cdc nodes
+2. 10.168.0.38, 10.168.0.39, deploy cn/dn two nodes each. Among them, the host_group under dn indicates a deployment machine with multiple copies of dn nodes. For example, if there are three copies of Paxos, three ips need to be filled in
 
 ```yaml
 version: v1
 type: polardbx
 cluster:
-  name: pxc_test
-  gms:
-    image: polardbx/galaxyengine:latest
-    host_group: [10.168.0.37]
-  cn:
-    image: polardbx/galaxysql:latest
-    replica: 2
-    nodes:
-      - host: 10.168.0.38
-      - host: 10.168.0.39
-    resources:
-      mem_limit: 4G
-  dn:
-    image: polardbx/galaxyengine:latest
-    replica: 2
-    nodes:
-      - host_group: [10.168.0.38]
-      - host_group: [10.168.0.39]
-    resources:
-      mem_limit: 4G
-  cdc:
-    image: polardbx/galaxycdc:latest
-    replica: 1
-    nodes:
-      - host: 10.168.0.37
-    resources:
-      mem_limit: 4G
+name: pxc_test
+gms:
+image: polardbx/galaxyengine:latest
+host_group: [10.168.0.37]
+cn:
+image: polardbx/galaxysql:latest
+replica: 2
+nodes:
+- host: 10.168.0.38
+- host: 10.168.0.39
+resources:
+mem_limit: 4G
+dn:
+image: polardbx/galaxyengine:latest
+replica: 2
+nodes:
+- host_group: [10.168.0.38]
+- host_group: [10.168.0.39]
+resources:
+mem_limit: 4G
+cdc:
+image: polardbx/galaxycdc:latest
+replica: 1
+nodes:
+- host: 10.168.0.37
+resources:
+mem_limit: 4G
 ```
 
-通过以上拓扑文件创建的 PolarDB-X 集群。拓扑文件包括如下属性:
+A PolarDB-X cluster created from the above topology file. The topology file includes the following properties:
 
-- version: 拓扑文件版本，无需修改
-- type: polardbx， 无需修改
-- cluster.name：PolarDB-X 集群名称
-- cluster.gms.image: gms docker 镜像名称，可不填。默认为最新镜像
-- cluster.gms.host_group: gms 机器 ip 列表，如果想创建单副本模式，列表中填写1个ip即可，如果想创建基于Paxos的三副本集群，列表中填3个ip即可。三副本集群的Leader节点将从前两个ip的节点上随机选出
+- version: topology file version, no need to modify
+- type: polardbx, no need to modify
+- cluster.name: PolarDB-X cluster name
+- cluster.gms.image: gms docker image name, optional. The default is the latest mirror
+- cluster.gms.host_group: gms machine ip list, if you want to create a single copy mode, fill in 1 ip in the list, if you want to create a three-copy cluster based on Paxos, fill in 3 ip in the list. The Leader node of the three-copy cluster will be randomly selected from the first two IP nodes
 - cluster.cn
-   - image: 计算节点镜像名称，可不填，默认为最新镜像
-   - replica: 计算节点数目，需要与nodes中的host数量对应
-   - nodes: 计算节点的ip列表
-   - resources: 计算节点使用的资源
-      - mem_limit: 内存上限，默认 2G
+- image: Compute node image name, optional, the default is the latest image
+- replica: Calculate the number of nodes, which needs to correspond to the number of hosts in nodes
+- nodes: ip list of computing nodes
+- resources: resources used by computing nodes
+- mem_limit: memory limit, default 2G
 - cluster.dn
-   - image: 数据节点镜像名称，可不填，默认为最新镜像
-   - replica: 数据节点数目，需要与nodes中的 host_group 数量对应
-   - nodes: 存储节点的host_group列表，一个 host_group 表示一个dn节点多副本的部署机器，比如Paxos三副本的话需要填入三个ip。三副本集群的Leader节点将从前两个ip的节点上随机选出
-   - resources: 存储节点使用的资源
-      - mem_limit: 内存上限，默认 2G
+- image: The name of the data node image, which can be left blank and defaults to the latest image
+- replica: the number of data nodes, which needs to correspond to the number of host_group in nodes
+- nodes: host_group list of storage nodes, a host_group represents a deployment machine with multiple copies of a dn node, for example, if there are three copies of Paxos, three ips need to be filled in. The Leader node of the three-copy cluster will be randomly selected from the first two IP nodes
+- resources: resources used by storage nodes
+- mem_limit: memory limit, default 2G
 - cluster.cdc
-   - image: CDC 节点镜像名称，可不填，默认为最新镜像
-   - replica: CDC 节点数目，需要与nodes中的host数量对应
-   - nodes: CDC 节点的ip列表
-   - resources: CDC 节点使用的资源
-      - mem_limit: 内存上限，默认 2G
+- image: CDC node image name, optional, the default is the latest image
+- replica: the number of CDC nodes, which needs to correspond to the number of hosts in nodes
+- nodes: CDC node ip list
+- resources: resources used by CDC nodes
+- mem_limit: memory limit, default 2G
 
-> **注意**：如果创建基于Paxos的三副本集群，需要PXD版本为0.3.0及以上。
+> **Note**: If you create a Paxos-based three-copy cluster, you need PXD version 0.3.0 and above.
 
-## 创建 PolarDB-X 集群
-执行如下命令，即可在集群内一键部署 PolarDB-X：
+## Create a PolarDB-X cluster
+Execute the following command to deploy PolarDB-X in the cluster with one click:
 
 ```shell
 pxd create -file polardbx.yaml
 ```
-部署完成后，pxd 会输出 PolarDB-X 集群的连接方式，通过 MySQL 命令行即可登录 PolarDB-X 数据库进行测试。
+After the deployment is complete, pxd will output the connection method of the PolarDB-X cluster, and you can log in to the PolarDB-X database for testing through the MySQL command line.
 
-![PXD 创建 PolarDB-X 集群](../images/pxd_create_result.png)
+![PXD create PolarDB-X cluster](../images/pxd_create_result.png)
 
-> 注：
-> - PolarDB-X 管理员账号的密码是随机生成的，仅出现这一次，请注意保存。
-> - PolarDB-X CN 本身是无状态的，集群环境下会部署多个 CN 节点，任意的 CN 都可登陆执行 SQL。如需要负载均衡，可以通过负载均衡组件（如 LVS、HAProxy 或 F5 等）对外提供统一的接入地址。
+> Note:
+> - The password of the PolarDB-X administrator account is randomly generated, it only appears this time, please save it.
+> - PolarDB-X CN itself is stateless, and multiple CN nodes will be deployed in a cluster environment, and any CN can log in and execute SQL. If load balancing is required, a unified access address can be provided externally through load balancing components (such as LVS, HAProxy, or F5, etc.).
 
 
-通过 MySQL Client 即可连接，执行如下 SQL 初步体验 PolarDB-X 的分布式特性。PolarDB-X SQL 详情请参考：[SQL 概述](https://help.aliyun.com/document_detail/313263.html)
+You can connect through the MySQL Client, and execute the following SQL to experience the distributed features of PolarDB-X initially. For details about PolarDB-X SQL, please refer to: [SQL Overview](https://help.aliyun.com/document_detail/313263.html)
 
 ```sql
-# 检查GMS 
+# check GMS
 select * from information_schema.schemata;
 
-# 创建分区表
+# create partition table
 create database polarx_example partition_mode='partitioning';
 
 use polarx_example;
 
 create table example (
-  `id` bigint(11) auto_increment NOT NULL,
-  `name` varchar(255) DEFAULT NULL,
-  `score` bigint(11) DEFAULT NULL,
-  primary key (`id`)
-) engine=InnoDB default charset=utf8 
-partition by hash(id) 
+`id` bigint(11) auto_increment NOT NULL,
+`name` varchar(255) DEFAULT NULL,
+`score` bigint(11) DEFAULT NULL,
+primary key (`id`)
+) engine=InnoDB default charset=utf8
+partition by hash(id)
 partitions 8;
 
 insert into example values(null,'lily',375),(null,'lisa',400),(null,'ljh',500);
@@ -177,25 +177,25 @@ select * from example;
 
 show topology from example;
 
-# 检查CDC
+# check CDC
 show master status ;
 show binlog events in 'binlog.000001' from 4;
 
 
-# 检查DN和CN
-show storage ;  
-show mpp ;    
+# Check DN and CN
+show storage ;
+show mpp ;
 ```
 
-## 查看 PolarDB-X 集群状态
-执行如下命令查看 PolarDB-X 集群状态：
+## View PolarDB-X cluster status
+Execute the following command to view the PolarDB-X cluster status:
 
 ```shell
 pxd list
 ```
-![PXD list 结果](../images/pxd_list_result.png)
+![PXD list result](../images/pxd_list_result.png)
 
-执行如下命令可以查看 pxd 的更多指令及用法：
+Execute the following command to view more instructions and usage of pxd:
 ```shell
 pxd --help
 ```

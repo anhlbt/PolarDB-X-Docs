@@ -2,27 +2,27 @@
 
 
 
-# 通过PXD部署本地实例
+# Deploy a local instance via PXD
 
-本文介绍如何快速上手体验 PolarDB-X 数据库。要上手 PolarDB-X 数据库，你将使用到 PXD 工具。通过 PXD，你只需执行一行命令就可在本地快速拉起一个 PolarDB-X。
-> 注意：
-> - PXD 主要面向的是开发测试场景，生产环境请使用 [GalaxyKube](https://github.com/ApsaraDB/galaxykube) 在 K8S 上进行部署
+This article describes how to quickly get started with the PolarDB-X database. To get started with the PolarDB-X database, you will use the PXD tool. With PXD, you only need to execute a single command to quickly pull up a PolarDB-X locally.
+> Note:
+> - PXD is mainly for development and testing scenarios, please use [GalaxyKube](https://github.com/ApsaraDB/galaxykube) to deploy on K8S for production environment
 
-## 准备工作
-通过 PXD 工具部署 PolarDB-X 数据库需要先安装 Python3 和 Docker。下面给出不同操作系统的安装方式：
-> 注：PXD 目前仅支持 x86 架构的机器
+## Preparation
+Deploying the PolarDB-X database through the PXD tool requires installing Python3 and Docker first. The installation methods for different operating systems are given below:
+> Note: PXD currently only supports x86 architecture machines
 
-### 在 macOS 上准备测试环境
+### Prepare test environment on macOS
 
-> 注：使用 M1 处理器的 MacBook 暂不支持
+> Note: MacBooks with M1 processors are not currently supported
 
-1.安装 Python3
+1. Install Python3
 
-> 如果你的机器上已经安装了 python3，可以跳过 
-> 
-> 检查命令：`which python3`，如果有返回则代表 python3 已安装
-> 
-> 推荐使用 Homebrew 安装 python3，如果没有 Homebrew，可参考 Homebrew 官方安装方法：
+> If python3 is already installed on your machine, you can skip
+>
+> Check the command: `which python3`, if there is a return, it means that python3 has been installed
+>
+> It is recommended to use Homebrew to install python3. If you do not have Homebrew, you can refer to the official Homebrew installation method:
 ```shell
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
 ```
@@ -31,142 +31,142 @@
 brew install python
 ```
 
-2.安装 Docker Desktop for Mac，参考文档：[https://docs.docker.com/desktop/mac/install/](https://docs.docker.com/desktop/mac/install/)
+2. Install Docker Desktop for Mac, refer to the documentation: [https://docs.docker.com/desktop/mac/install/](https://docs.docker.com/desktop/mac/install/)
 
-> 由于 Docker Desktop for Mac 的默认内存是 2G，无法满足 PolarDB-X 开发测试环境的最低要求，
-> 需要在 Docker Preferences 中将内存调整到8G，如下图所示：
+> Since the default memory of Docker Desktop for Mac is 2G, it cannot meet the minimum requirements of the PolarDB-X development and testing environment,
+> You need to adjust the memory to 8G in Docker Preferences, as shown in the figure below:
 
 ![Docker Memory](../images/mac_docker_memory.png)
 
-### 在 CentOS 上准备测试环境
+### Prepare Test Environment on CentOS
 
->注：包括 [Anolis OS](https://openanolis.cn/) 
+>Note: Including [Anolis OS](https://openanolis.cn/)
 
-1.安装 Python3
+1. Install Python3
 
-> 如果你的机器上已经安装了 python3，可以跳过 
-> 
-> 检查命令：`which python3`，如果有返回则代表 python3 已安装
+> If python3 is already installed on your machine, you can skip
+>
+> Check the command: `which python3`, if there is a return, it means that python3 has been installed
 
 ```shell
 yum update -y
 yum install -y python3
 ```
 
-2.安装 Docker, 详见文档：[https://docs.docker.com/engine/install/centos/](https://docs.docker.com/engine/install/centos/)
+2. Install Docker, see the documentation for details: [https://docs.docker.com/engine/install/centos/](https://docs.docker.com/engine/install/centos/)
 
-> 安装完成后执行 `docker ps` 命令验证。如果遇到如下报错，请参考本小节FAQ：非 root 用户如何获取 docker 权限
+> Execute the `docker ps` command to verify after the installation is complete. If you encounter the following errors, please refer to the FAQ in this section: How to obtain docker permissions for non-root users
 ```text
 Got permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Get http:///var/run/docker.sock/v1.26/images/json: dial unix /var/run/docker.sock: connect: permission denied
 ```
 
-### 在 Ubuntu 上准备测试环境
+### Prepare test environment on Ubuntu
 
-1.安装 Python3
+1. Install Python3
 
-> 可在shell中执行 `python3` 检查 Python3 是否已经安装，若已安装，直接执行第 2 步。
+> You can execute `python3` in the shell to check whether Python3 has been installed. If it is installed, go to step 2 directly.
 
 ```
 apt-get update
 apt-get install python3.8 python3.8-venv
 ```
 
-2.安装 Docker, 详见文档：[https://docs.docker.com/engine/install/ubuntu/](https://docs.docker.com/engine/install/ubuntu/)
+2. Install Docker, see the documentation for details: [https://docs.docker.com/engine/install/ubuntu/](https://docs.docker.com/engine/install/ubuntu/)
 
-> 安装完成后执行 `docker ps` 命令验证。如果遇到如下报错，请参考本小节FAQ：非 root 用户如何获取 docker 权限
+> Execute the `docker ps` command to verify after the installation is complete. If you encounter the following errors, please refer to the FAQ in this section: How to obtain docker permissions for non-root users
 ```text
 Got permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Get http:///var/run/docker.sock/v1.26/images/json: dial unix /var/run/docker.sock: connect: permission denied
 ```
 
-### 在 Windows 上准备测试环境
+### Prepare test environment on Windows
 
-Windows 平台上一般使用 WSL 来运行 PolarDB-X。
+Generally, WSL is used to run PolarDB-X on Windows platform.
 
-1.安装 WSL，参考文档：[https://docs.microsoft.com/en-us/windows/wsl/install](https://docs.microsoft.com/en-us/windows/wsl/install) ，使用默认的 Linux 发行版 Ubuntu
+1. Install WSL, refer to the document: [https://docs.microsoft.com/en-us/windows/wsl/install](https://docs.microsoft.com/en-us/windows/wsl/install) , using the default Linux distribution Ubuntu
 
-2.安装 Docker Desktop，参考文档：[https://docs.docker.com/desktop/windows/wsl/](https://docs.docker.com/desktop/windows/wsl/)
+2. Install Docker Desktop, refer to the documentation: [https://docs.docker.com/desktop/windows/wsl/](https://docs.docker.com/desktop/windows/wsl/)
 
-3.安装 Python3
+3. Install Python3
 
-> 如果你的机器上已经安装了 python3，可以跳过 
+> If python3 is already installed on your machine, you can skip
 
 ```shell
 apt-get install python3
 apt-get install python3-venv
 ```
 
-4.安装pip
+4. Install pip
 
 ```shell
 apt-get install python3-pip
 ```
 
-## 安装 PXD
-> 注意： 推荐使用 virtual environment 安装 PXD 工具
+## Install PXD
+> Note: It is recommended to use virtual environment to install PXD tools
 ```shell
 python3 -m venv venv
 source venv/bin/activate
 ```
 
-安装前建议先执行如下命令升级 pip
+Before installation, it is recommended to execute the following command to upgrade pip
 ```shell
 pip install --upgrade pip
 ```
 
-执行如下命令安装 pxd: 
+Execute the following command to install pxd:
 ```shell
 pip install pxd
 ```
-> 注： 部分国内用户从 pypi 下载包的速度较慢, 可以使用如下命令从阿里云的镜像安装：
+> Note: Some domestic users download the package from pypi slowly, you can use the following command to install from the image of Alibaba Cloud:
 ```shell
 pip install -i https://mirrors.aliyun.com/pypi/simple/ pxd
 ```
 
 
-## 部署 PolarDB-X
+## Deploy PolarDB-X
 
-- 直接运行 pxd tryout 命令会创建一个最新版本的 PolarDB-X 数据库，其中 GMS, CN, DN, CDC 节点各 1 个：
+- Running the pxd tryout command directly will create a PolarDB-X database of the latest version, including one GMS, CN, DN, and CDC nodes:
 ```shell
 pxd tryout
 ```
 
-- 您也可以指定 CN，DN, CDC 节点的个数以及版本，命令如下：
+- You can also specify CN, DN, the number and version of CDC nodes, the command is as follows:
 ```shell
 pxd tryout -cn_replica 1 -cn_version latest -dn_replica 1 -dn_version latest -cdc_replica 1 -cdc_version latest
 ```
 
-- tryout 模式创建的 GMS 和 DN 默认采用单副本模式，如果您想创建基于 Paxos 的三副本的集群，使用如下命令：
+- The GMS and DN created in tryout mode adopt single-copy mode by default. If you want to create a three-copy cluster based on Paxos, use the following command:
 
 ```bash
 pxd tryout -leader_only false
 ```
 
-> **注意**：三副本模式需要PXD版本为0.3.0及以上。
+> **Note**: The three-copy mode requires PXD version 0.3.0 and above.
 
-PolarDB-X 数据库创建完成后，会输出对应的连接信息:
+After the PolarDB-X database is created, the corresponding connection information will be output:
 
 ![image.png](../images/pxd_tryout_result.png)
 
-> 注意：PolarDB-X 管理员账号的密码随机生成，仅出现这一次，请注意保存。
+> Note: The password of the PolarDB-X administrator account is randomly generated, it only appears this time, please save it.
 
-通过 MySQL Client 即可连接，执行如下 SQL 初步体验 PolarDB-X 的分布式特性。PolarDB-X SQL 详情请参考：[SQL 概述](../../dev-guide/topics/sql-overview.md)
+You can connect through the MySQL Client, and execute the following SQL to experience the distributed features of PolarDB-X initially. For details about PolarDB-X SQL, please refer to: [SQL Overview](../../dev-guide/topics/sql-overview.md)
 
 ```sql
-# 检查GMS 
+# check GMS
 select * from information_schema.schemata;
 
-# 创建分区表
+# create partition table
 create database polarx_example partition_mode='partitioning';
 
 use polarx_example;
 
 create table example (
-  `id` bigint(11) auto_increment NOT NULL,
-  `name` varchar(255) DEFAULT NULL,
-  `score` bigint(11) DEFAULT NULL,
-  primary key (`id`)
-) engine=InnoDB default charset=utf8 
-partition by hash(id) 
+`id` bigint(11) auto_increment NOT NULL,
+`name` varchar(255) DEFAULT NULL,
+`score` bigint(11) DEFAULT NULL,
+primary key (`id`)
+) engine=InnoDB default charset=utf8
+partition by hash(id)
 partitions 8;
 
 insert into example values(null,'lily',375),(null,'lisa',400),(null,'ljh',500);
@@ -175,54 +175,54 @@ select * from example;
 
 show topology from example;
 
-# 检查CDC
+# check CDC
 show master status ;
 show binlog events in 'binlog.000001' from 4;
 
 
-# 检查DN和CN
-show storage ;  
-show mpp ;  
+# Check DN and CN
+show storage ;
+show mpp ;
 ```
 
-## 查看 PolarDB-X 状态
-执行如下命令，查看当前环境的 PolarDB-X 列表：
+## View PolarDB-X status
+Execute the following command to view the list of PolarDB-X in the current environment:
 ```shell
 pxd list
 ```
 
-## 清理 PolarDB-X
-执行如下命令，即可清理本地环境所有的 PolarDB-X：
+## Clean PolarDB-X
+Execute the following command to clean up all PolarDB-X in the local environment:
 ```shell
 pxd cleanup
 ```
 
-## 集群部署
-PXD 除了支持在本地一键创建实例外，也支持在 Linux 集群部署 PolarDB-X，请参考：[使用 PXD 在集群部署 PolarDB-X](quickstart-pxd-cluster.md) 。
+## Cluster deployment
+In addition to supporting local one-click instance creation, PXD also supports deploying PolarDB-X in Linux clusters, please refer to: [Use PXD to deploy PolarDB-X in clusters](quickstart-pxd-cluster.md).
 
 ## FAQ
 
-### 非 root 用户如何获取 docker 权限
+### How non-root users get docker permissions
 
-1.创建 docker 用户组，其实 docker 安装时会自动创建一个名为 docker 的用户组，可以通过查看 /etc/group 确认 docker 用户组的存在，如若不存在则手动创建 docker 用户组
+1. Create a docker user group. In fact, when docker is installed, it will automatically create a user group named docker. You can check /etc/group to confirm the existence of the docker user group. If it does not exist, manually create a docker user group
 
 ```shell
 sudo groupadd docker
 ```
 
-2.添加当前非 root 用户到 docker 用户组中
+2. Add the current non-root user to the docker user group
 
 ```shell
 sudo gpasswd -a ${USER} docker
 ```
-3.将当前非 root 用户的 group 切换到 docker 用户组或者退出后重新登录
+3. Switch the group of the current non-root user to the docker user group or log out and log in again
 
 ```shell
 newgrp docker
 ```
 
-4.执行 `docker ps` 验证
+4. Execute `docker ps` verification
 
 
-### PolarDB-X 端口占用说明
-目前本地测试模式，CN，DN，GMS 节点各会占用一个端口，该端口随机生成，如果因为端口冲突导致 PolarDB-X 创建失败，请执行 `pxd cleanup` 或者  `pxd delete {集群名}` 清理后重新创建即可。 
+### PolarDB-X Port Occupancy Instructions
+In the current local test mode, CN, DN, and GMS nodes each occupy a port, which is randomly generated. If PolarDB-X fails to be created due to port conflicts, please execute `pxd cleanup` or `pxd delete {cluster name}` after cleaning Just recreate it.

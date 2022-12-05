@@ -1,6 +1,6 @@
-账号与权限
+Account and permissions
 =======================
 
-* [账号管理](account.md)
-* [角色管理](role.md)
-* [三权分立](triple-authority-introduction.md)
+* [Account Management](account.md)
+* [Role Management](role.md)
+* [Separation of three powers](triple-authority-introduction.md)

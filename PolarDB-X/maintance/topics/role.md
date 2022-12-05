@@ -1,14 +1,14 @@
-角色权限管理 
+Role permission management
 ===========================
 
-本文介绍角色权限管理相关语法级示例。
+This article introduces syntax-level examples related to role permission management.
 
-PolarDB-X兼容原生MySQL 8.0基于角色的权限控制，请参见[基于角色的权限控制](https://dev.mysql.com/doc/refman/8.0/en/roles.html) 。
+PolarDB-X is compatible with native MySQL 8.0 role-based access control, please refer to [Role-based Access Control](https://dev.mysql.com/doc/refman/8.0/en/roles.html).
 
-创建角色 
+Creating a Role
 -------------------------
 
-语法：
+grammar:
 
 ```sql
 CREATE ROLE role [, role]...
@@ -16,22 +16,22 @@ CREATE ROLE role [, role]...
 
 
 
-role同user一样也由Name和Host这两部分组成，其中：
+Like user, role also consists of Name and Host, among which:
 
-* Name不能为空；
+* Name cannot be empty;
 
-* Host需满足如下规则：
-  * 必须是纯IP地址，可以包含下划线（_）和百分号（%），但这两个符号仅代表2个普通字符，并不具备通配符意义；
-  
-  * Host留空等于%，但也是精准匹配，不具备通配符意义。
-  
-  
-  
+* Host must meet the following rules:
+* Must be a pure IP address, which can contain underscore (_) and percent sign (%), but these two symbols only represent 2 ordinary characters and do not have the meaning of wildcards;
+
+* Host blank is equal to %, but it is also an exact match and does not have the meaning of wildcard.
 
 
 
 
-示例：
+
+
+
+Example:
 
 ```sql
 mysql> CREATE ROLE 'role_ro'@'%', 'role_write';
@@ -39,10 +39,10 @@ mysql> CREATE ROLE 'role_ro'@'%', 'role_write';
 
 
 
-删除角色 
+delete role
 -------------------------
 
-语法：
+grammar:
 
 ```sql
 DROP ROLE role [, role] ...
@@ -50,7 +50,7 @@ DROP ROLE role [, role] ...
 
 
 
-示例：
+Example:
 
 ```sql
 mysql> DROP ROLE 'role_ro'@'%';
@@ -58,12 +58,12 @@ mysql> DROP ROLE 'role_ro'@'%';
 
 
 
-授予角色 
+grant role
 -------------------------
 
-**将权限授予角色**
+**Grant permission to role**
 
-语法：
+grammar:
 
 ```sql
 GRANT priv_type [, priv_type] ... ON priv_level TO role [, role]... [WITH GRANT OPTION]
@@ -71,15 +71,15 @@ GRANT priv_type [, priv_type] ... ON priv_level TO role [, role]... [WITH GRANT 
 
 
 
-示例：
+Example:
 
 ```sql
 mysql> GRANT ALL PRIVILEGES ON db1.* TO 'role_write';
 ```
 
- **将角色授予用户**
+**Grant role to user**
 
-语法：
+grammar:
 
 ```sql
 GRANT role [, role] ...
@@ -89,31 +89,31 @@ TO user_or_role [, user_or_role] ...
 
 
 
-说明：
+illustrate:
 
-* 执行该命令必须满足如下条件的其中之一：
-  * 当前用户有CREATE_USER权限；
-  
-  * 当前用户对Role有admin权限；
-  
-  
-  
-* 如果包含WITH ADMIN OPTION选项，则目标用户对该Role拥有admin权限；
+* To execute this command, one of the following conditions must be met:
+* The current user has CREATE_USER permission;
 
-* 将角色授予用户并不代表此用户已拥有该角色下的权限，您还需要通过`SET DEFAULT ROLE`语句和`SET ROLE`语句为用户设置需要激活的角色。
+* The current user has admin permission for Role;
 
 
 
+* If the WITH ADMIN OPTION option is included, the target user has admin permission for the Role;
 
-示例：
+* Granting a role to a user does not mean that the user already has the permissions under the role, you also need to set the role that needs to be activated for the user through the `SET DEFAULT ROLE` statement and the `SET ROLE` statement.
+
+
+
+
+Example:
 
 ```sql
 mysql> GRANT 'role_write' TO 'user1'@'127.0.0.1';
 ```
 
- **设置默认角色**
+**SET DEFAULT ROLE**
 
-语法：
+grammar:
 
 ```sql
 SET DEFAULT ROLE
@@ -123,46 +123,46 @@ TO user [, user ] ...
 
 
 
-执行该命令必须满足如下条件的其中之一：
+One of the following conditions must be met to execute this command:
 
-* 语句中所提到的Role已通过GRANT命令授予给目标用户；
+* The Role mentioned in the statement has been granted to the target user through the GRANT command;
 
-* 当前用户为目标用户，或当前用户有CREATE_USER权限。
-
-
+* The current user is the target user, or the current user has CREATE_USER permission.
 
 
-示例：
+
+
+Example:
 
 ```sql
 mysql> SET DEFAULT ROLE 'role_write' TO 'user1'@'127.0.0.1';
 ```
 
- **设置当前连接角色**
+**Set the current connection role**
 
-语法：
+grammar:
 
 ```sql
 SET ROLE {
-    DEFAULT
-  | NONE
-  | ALL
-  | ALL EXCEPT role [, role ] ...
-  | role [, role ] ...
+DEFAULT
+| NONE
+| ALL
+| ALL EXCEPT role [, role ] ...
+| role [, role ] ...
 }
 ```
 
 
-**说明**
+**illustrate**
 
-* 若选择执行`SET ROLE DEFAULT` ，则当前激活的角色为`SET DEFAULT ROLE`命令中选择的角色；
+* If you choose to execute `SET ROLE DEFAULT`, the currently activated role is the role selected in the `SET DEFAULT ROLE` command;
 
-* 通过该语法激活的角色仅对使用当前连接的用户生效。
-
-
+* The role activated by this syntax is only valid for the user using the current connection.
 
 
-示例：
+
+
+Example:
 
 ```sql
 mysql> SET ROLE 'role_write';;
@@ -170,20 +170,20 @@ mysql> SET ROLE 'role_write';;
 
 
 
-查看角色权限 
+View role permissions
 ---------------------------
 
-语法：
+grammar:
 
 ```sql
 SHOW GRANTS
-    [FOR user_or_role
-        [USING role [, role] ...]]
+[FOR user_or_role
+[USING role [, role] ...]]
 ```
 
 
 
-示例：
+Example:
 
 ```sql
 mysql>  SHOW GRANTS FOR 'role_write'@'%';
@@ -201,7 +201,7 @@ mysql> SHOW GRANTS FOR 'user1'@'127.0.0.1' USING 'role_write';
 | GRANT ALL PRIVILEGES ON db1.* TO 'user1'@'127.0.0.1' |
 | GRANT 'role_write'@'%' TO 'user1'@'127.0.0.1'        |
 +------------------------------------------------------+
--- 以user1的会话执行
+-- Execute as user1's session
 mysql> SELECT CURRENT_ROLE();
 +------------------+
 | CURRENT_ROLE()   |
@@ -212,12 +212,12 @@ mysql> SELECT CURRENT_ROLE();
 
 
 
-回收角色 
+recycle role
 -------------------------
 
-**回收角色的权限**
+**Recycle role permissions**
 
-语法：
+grammar:
 
 ```sql
 REVOKE priv_type [, priv_type] ... ON priv_level FROM role [, role]...
@@ -225,7 +225,7 @@ REVOKE priv_type [, priv_type] ... ON priv_level FROM role [, role]...
 
 
 
-示例：
+Example:
 
 ```sql
 mysql> REVOKE ALL PRIVILEGES ON db1.* FROM 'role_write';
@@ -237,9 +237,9 @@ mysql> SHOW GRANTS FOR 'role_write'@'%';
 +----------------------------------------+
 ```
 
- **回收用户的权限**
+**Recycle user's permissions**
 
-语法：
+grammar:
 
 ```sql
 REVOKE role [, role ] ... FROM user_or_role [, user_or_role ] ...
@@ -247,7 +247,7 @@ REVOKE role [, role ] ... FROM user_or_role [, user_or_role ] ...
 
 
 
-示例：
+Example:
 
 ```sql
 mysql> SHOW GRANTS FOR 'user1'@'127.0.0.1';

@@ -1,12 +1,12 @@
-聚合优化和执行 
+Aggregate Optimization and Execution
 ============================
 
-本文介绍如何优化器和执行器如何处理聚合（Group-by），以达到减少数据传输量和提高执行效率的效果。
+This article introduces how the optimizer and executor process aggregation (Group-by) to achieve the effect of reducing the amount of data transmission and improving execution efficiency.
 
-基本概念 
+basic concept
 -------------------------
 
-聚合操作（Aggregate，简称Agg）语义为按照GROUP BY指定列对输入数据进行聚合的计算，或者不分组、对所有数据进行聚合的计算。PolarDB-X支持如下聚合函数：
+Aggregate operation (Aggregate, referred to as Agg) semantics is the calculation of aggregating input data according to the specified column of GROUP BY, or the calculation of aggregating all data without grouping. PolarDB-X supports the following aggregation functions:
 
 * COUNT
 
@@ -27,20 +27,20 @@
 
 
 
-聚合（Agg） 
+Aggregation (Agg)
 ----------------------------
 
-本文介绍均为不下推的Agg的实现。如果已被下推到LogicalView中，则由存储层MySQL来选择执行方式，聚合（Agg）由两种主要的算子HashAgg和SortAgg实现。
+This article introduces the implementation of Agg without pushdown. If it has been pushed down to LogicalView, the execution method is selected by the storage layer MySQL, and aggregation (Agg) is realized by two main operators HashAgg and SortAgg.
 
-**HashAgg** 
+**HashAgg**
 
-HashAgg利用哈希表实现聚合：
+HashAgg uses hash tables to achieve aggregation:
 
-1. 根据输入行的分组列的值，通过Hash找到对应的分组。
+1. According to the value of the grouping column of the input row, find the corresponding grouping through Hash.
 
-2. 按照指定的聚合函数，对该行进行聚合计算。
+2. Perform aggregation calculation on the row according to the specified aggregation function.
 
-3. 重复以上步骤直到处理完所有的输入行，最后输出聚合结果。
+3. Repeat the above steps until all input rows are processed, and finally output the aggregation result.
 
 
 
@@ -48,73 +48,73 @@ HashAgg利用哈希表实现聚合：
 ```sql
 > explain select count(*) from t1 join t2 on t1.id = t2.id group by t1.name,t2.name;
 Project(count(*)="count(*)")
-  HashAgg(group="name,name0", count(*)="COUNT()")
-    BKAJoin(condition="id = id", type="inner")
-      Gather(concurrent=true)
-        LogicalView(tables="t1", shardCount=2, sql="SELECT `id`, `name` FROM `t1` AS `t1`")
-      Gather(concurrent=true)
-        LogicalView(tables="t2_[0-3]", shardCount=4, sql="SELECT `id`, `name` FROM `t2` AS `t2` WHERE (`id` IN ('?'))")
+HashAgg(group="name,name0", count(*)="COUNT()")
+BKAJoin(condition="id = id", type="inner")
+Gather(concurrent=true)
+LogicalView(tables="t1", shardCount=2, sql="SELECT `id`, `name` FROM `t1` AS `t1`")
+Gather(concurrent=true)
+LogicalView(tables="t2_[0-3]", shardCount=4, sql="SELECT `id`, `name` FROM `t2` AS `t2` WHERE (`id` IN ('?'))")
 ```
 
-Explain结果中，HashAgg算子还包含以下关键信息：
+In the Explain result, the HashAgg operator also contains the following key information:
 
-* group：表示GROUP BY字段，示例中为name,name0分别引用t1,t2表的name列，当存在相同别名会通过后缀数字区分 。
+* group: Indicates the GROUP BY field. In the example, name and name0 respectively refer to the name columns of the t1 and t2 tables. When the same alias exists, it will be distinguished by the suffix number.
 
-* 聚合函数：等号（=） 前为聚合函数对应的输出列名，其后为对应的计算方法。示例中 count(\*)="COUNT()" ，第一个 count(\*) 对应输出的列名，随后的COUNT()表示对其输入数据进行计数。
-
-
-HashAgg对应可以通过Hint来关闭：`/*+TDDL:cmd_extra(ENABLE_HASH_AGG=false)*/`
-
-**SortAgg** 
-
-SortAgg在输入数据已按分组列排序的情况，对各个分组依次完成聚合。
-
-* 保证输入按指定的分组列排序（例如，可能会看到 MergeSort 或 MemSort）。
-
-* 逐行读入输入数据，如果分组与当前分组相同，则对其进行聚合计算。
-
-* 如果分组与当前分组不同，则输出当前分组上的聚合结果。
+* Aggregation function: The equal sign (=) is the output column name corresponding to the aggregation function, followed by the corresponding calculation method. In the example count(\*)="COUNT()" , the first count(\*) corresponds to the output column name, and the subsequent COUNT() means to count its input data.
 
 
-相比 HashAgg，SortAgg 每次只要处理一个分组，内存消耗很小；相对的，HashAgg 需要把所有分组存储在内存中，需要消耗较多的内存。
+HashAgg correspondence can be turned off by Hint: `/*+TDDL:cmd_extra(ENABLE_HASH_AGG=false)*/`
+
+**SortAgg**
+
+SortAgg completes the aggregation for each group in turn when the input data is sorted by the grouping column.
+
+* Guarantees that the input is sorted by the specified grouping column (e.g. might see MergeSort or MemSort).
+
+* Read in the input data line by line, if the grouping is the same as the current grouping, perform aggregation calculation on it.
+
+* If the grouping is different from the current grouping, output the aggregation result on the current grouping.
+
+
+Compared with HashAgg, SortAgg only needs to process one group at a time, and the memory consumption is very small; in contrast, HashAgg needs to store all groups in memory, which consumes more memory.
 
 ```sql
 > explain select count(*) from t1 join t2 on t1.id = t2.id group by t1.name,t2.name order by t1.name, t2.name;
 Project(count(*)="count(*)")
-  MemSort(sort="name ASC,name0 ASC")
-    HashAgg(group="name,name0", count(*)="COUNT()")
-      BKAJoin(condition="id = id", type="inner")
-        Gather(concurrent=true)
-          LogicalView(tables="t1", shardCount=2, sql="SELECT `id`, `name` FROM `t1` AS `t1`")
-        Gather(concurrent=true)
-          LogicalView(tables="t2_[0-3]", shardCount=4, sql="SELECT `id`, `name` FROM `t2` AS `t2` WHERE (`id` IN ('?'))")
+MemSort(sort="name ASC,name0 ASC")
+HashAgg(group="name,name0", count(*)="COUNT()")
+BKAJoin(condition="id = id", type="inner")
+Gather(concurrent=true)
+LogicalView(tables="t1", shardCount=2, sql="SELECT `id`, `name` FROM `t1` AS `t1`")
+Gather(concurrent=true)
+LogicalView(tables="t2_[0-3]", shardCount=4, sql="SELECT `id`, `name` FROM `t2` AS `t2` WHERE (`id` IN ('?'))")
 ```
 
-SortAgg对应可以通过Hint来关闭：`/*+TDDL:cmd_extra(ENABLE_SORT_AGG=false)*/`
+SortAgg correspondence can be turned off by Hint: `/*+TDDL:cmd_extra(ENABLE_SORT_AGG=false)*/`
 
-**两阶段聚合优化** 
+**Two-stage aggregation optimization**
 
-两阶段聚合，即通过将Agg拆分为部分聚合（Partial Agg）和最终聚合（Final Agg）的两个阶段，先对部分结果集做聚合，然后将这些部分聚合结果汇总，得到整体聚合的结果。
+Two-stage aggregation, that is, by splitting Agg into two stages of partial aggregation (Partial Agg) and final aggregation (Final Agg), first aggregate partial result sets, and then aggregate these partial aggregation results to obtain the overall aggregation result .
 
-如下示例的SQL中，HashAgg 中拆分出的部分聚合（PartialAgg）会被下推至MySQL上的各个分表，而其中的AVG函数也被拆分成 SUM和 COUNT 以实现两阶段的计算：
+In the SQL of the following example, the partial aggregation (PartialAgg) split from HashAgg will be pushed down to each sub-table on MySQL, and the AVG function in it will also be split into SUM and COUNT to realize two-stage calculation:
 
 ```sql
 > explain select avg(age) from t2 group by name
 Project(avg(age)="sum_pushed_sum / sum_pushed_count")
-  HashAgg(group="name", sum_pushed_sum="SUM(pushed_sum)", sum_pushed_count="SUM(pushed_count)")
-    Gather(concurrent=true)
-      LogicalView(tables="t2_[0-3]", shardCount=4, sql="SELECT `name`, SUM(`age`) AS `pushed_sum`, COUNT(`age`) AS `pushed_count` FROM `t2` AS `t2` GROUP BY `name`")
+HashAgg(group="name", sum_pushed_sum="SUM(pushed_sum)", sum_pushed_count="SUM(pushed_count)")
+Gather(concurrent=true)
+LogicalView(tables="t2_[0-3]", shardCount=4, sql="SELECT `name`, SUM(`age`) AS `pushed_sum`, COUNT(`age`) AS `pushed_count` FROM `t2` AS `t2` GROUP BY `name`")
 ```
 
-两阶段聚合的优化能大大减少数据传输量、提高执行效率。
+The optimization of two-stage aggregation can greatly reduce the amount of data transmission and improve execution efficiency.
 
-总的来说，大部分场景做聚合的时候都倾向于选择HashAgg，只要当以下场景下才适合选择SortAgg做聚合：
+In general, HashAgg tends to be selected for aggregation in most scenarios, and SortAgg is suitable for aggregation only in the following scenarios:
 
-1. 数据比较多，内存严重不足。
+1. There is a lot of data, and the memory is seriously insufficient.
 
-2. 聚合算子的输入已经按照Group By 列做好排序，这样做SortAgg就不需要额外排序，执行效率会更高。
+2. The input of the aggregation operator has been sorted according to the Group By column, so SortAgg does not need additional sorting, and the execution efficiency will be higher.
 
-3. 当数据有严重倾斜，导致HashAgg执行效率不高，优先使用SortAgg
+3. When the data is seriously skewed, resulting in low HashAgg execution efficiency, SortAgg is preferred
 
 
 

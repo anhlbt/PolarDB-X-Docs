@@ -1,237 +1,237 @@
-# 使用Flink订阅PolarDB-X CDC
+# Subscribe to PolarDB-X CDC using Flink
 
-本小节介绍如何通过Flink实时订阅PolarDB-X的增量数据，通过简单配置示例（零代码）搭建实时数据大屏。
+This section introduces how to subscribe to the incremental data of PolarDB-X in real time through Flink, and build a real-time data large screen through a simple configuration example (zero code).
 
 <img src="../images/subscribe_flink_cdc.png" alt="Subscribe via Flink" width="700" />
 
-## 演示环境说明
+## Demonstration environment description
 
-建议通过MacOS或者Linux机器来进行操作。
+It is recommended to operate on a MacOS or Linux machine.
 
-**环境版本说明：**
+**Environment Release Notes:**
 
-| 实例      | 版本说明 |
+| Examples | Release Notes |
 | :-------- | :------- |
 | PolarDB-X | >= 2.0.1 |
-| Flink     | >=1.13.6 |
+| Flink | >=1.13.6 |
 | Flink-CDC | >= 2.2   |
 
-## 准备PolarDB-X环境
+## Prepare the PolarDB-X environment
 
-### 安装PolarDB-X
+### Install PolarDB-X
 
-如果您已经安装了Docker环境，请执行以下脚本完成PolarDB-X的安装，该过程大概需要1-2分钟。
+If you have already installed the Docker environment, please execute the following script to complete the installation of PolarDB-X, which takes about 1-2 minutes.
 
 ```bash
-# 获取PolarDB-X镜像
+# Get PolarDB-X image
 docker pull polardbx/polardb-x:2.0.1
 
-# 启动PolarDB-X, 并暴露8527端口, 这里可能需要1-2分钟
+# Start PolarDB-X, and expose port 8527, it may take 1-2 minutes
 docker run -d --name polardbx-play -p 8527:8527 polardbx/polardb-x
 
-# 通过MySQL客户端验证启动
+# Start with MySQL client authentication
 mysql -h127.1 -P8527 -upolardbx_root -p"123456"
 ```
 
-> **注意**：PolarDB-X集群部署方式有PXD、Kubernetes等，详情请参见[快速入门](../../quickstart/topics/Quick-Start.md)。
+> **Note**: PolarDB-X cluster deployment methods include PXD, Kubernetes, etc. For details, please refer to [Quick Start](../../quickstart/topics/Quick-Start.md).
 
-## 准备Flink环境
+## Prepare the Flink environment
 
-- 安装Flink
-- 下载Flink Connector（jar包）
-  - Connector for MySQL-CDC：订阅PolarDB-X Binlog
-  - Connector For Jdbc：用于Jdbc写入
-  - Connector For MySQL：用于支持MySQL写入
+- Install Flink
+- Download Flink Connector (jar package)
+- Connector for MySQL-CDC: Subscribe to PolarDB-X Binlog
+- Connector For Jdbc: for Jdbc writing
+- Connector For MySQL: used to support MySQL writing
 
 ```bash
-# 下载Flink安装包并解压
+# Download the Flink installation package and decompress it
 wget https://dlcdn.apache.org/flink/flink-1.13.6/flink-1.13.6-bin-scala_2.11.tgz
-tar -xzvf flink-1.13.6-bin-scala_2.11.tgz
+his-sjbf-falling-1.13.6-bin-scale_2.ga.brain
 
-# Flink的插件均以jar包形式存放在${FLINK_HOME}/lib目录下
+# Flink's plugins are stored in the ${FLINK_HOME}/lib directory in the form of jar packages
 cd flink-1.13.6/lib
 
-# 下载Flink-CDC插件，用于订阅增量日志
+# Download the Flink-CDC plugin for subscribing to incremental logs
 wget https://repo1.maven.org/maven2/com/ververica/flink-sql-connector-mysql-cdc/2.2.0/flink-sql-connector-mysql-cdc-2.2.0.jar
 
-# 下载Flink-JDBC插件Flink-MySQL驱动，用于写入PolarDB-X
+# Download the Flink-JDBC plug-in Flink-MySQL driver for writing to PolarDB-X
 wget https://repo.maven.apache.org/maven2/org/apache/flink/flink-connector-jdbc_2.11/1.13.6/flink-connector-jdbc_2.11-1.13.6.jar
 wget https://repo.maven.apache.org/maven2/mysql/mysql-connector-java/8.0.28/mysql-connector-java-8.0.28.jar
 
-# 回到${FLINK_HOME}，分别启动Flink服务端
+# Go back to ${FLINK_HOME} and start the Flink server separately
 cd ..
 ./bin/start-cluster.sh
 ```
 
-> 更多关于Flink的详情，请访问[Flink官网](https://flink.apache.org/)及[Flink-CDC官网](https://ververica.github.io/flink-cdc-connectors)。
+> For more details about Flink, please visit [Flink official website](https://flink.apache.org/) and [Flink-CDC official website](https://ververica.github.io/flink-cdc-connectors) .
 
-## 准备数据
+## Prepare data
 
-### 准备PolarDB-X数据
+### Prepare PolarDB-X data
 
-- trades表：模拟交易表，用于模拟用户支付行为
-- shop_gmv_d表：模拟成交金额实时统计表，用于统计当天成交金额
+- trades table: simulated transaction table, used to simulate user payment behavior
+- shop_gmv_d table: real-time statistical table of simulated transaction amount, used to count the transaction amount of the day
 
 ```sql
-# 登录PolarDB-X
+# Login to PolarDB-X
 mysql -h127.1 -P8527 -upolardbx_root -p"123456"
 
-# 创建数据库
+# create database
 create database flink_cdc_demo;
 use flink_cdc_demo;
 
-# 订单表
+# order form
 create table `trades` (
-  id integer auto_increment NOT NULL,
-  shop_id integer comment '店铺id',
-  pay_amount decimal  comment '支付金额', 
-  stat_date date comment '统计时间',
-  primary key(id)
-) comment ='交易表' dbpartition by hash(id);
+id integer auto_increment NOT NULL,
+shop_id integer comment 'shop id',
+pay_amount decimal comment 'payment amount',
+stat_date date comment 'statistical time',
+primary key(id)
+) comment = 'transaction table' dbpartition by hash(id);
 
-# 模拟用户支付行为，此处假定每单金额为10
+# Simulate the user's payment behavior, here it is assumed that the amount of each order is 10
 insert trades values(default, 1001, 10, '2022-03-15');
 insert trades values(default, 1001, 10, '2022-03-15');
 insert trades values(default, 1001, 10, '2022-03-15');
 insert trades values(default, 1001, 10, '2022-03-15');
 insert trades values(default, 1001, 10, '2022-03-15');
 
-# 接收Flink写入的GMV
+# Receive GMV written by Flink
 create table `shop_gmv_d` (
-  stat_date date comment '统计时间',
-  shop_id integer comment '店铺id',
-  gmv decimal comment '成交总额',
-  primary key(stat_date, shop_id)
-) comment = '店铺1天实时成交金额';
+stat_date date comment 'statistical time',
+shop_id integer comment 'shop id',
+gmv decimal comment 'total turnover',
+primary key(stat_date, shop_id)
+) comment = 'Shop 1 day real-time transaction amount';
 ```
 
-### 准备Flink测试表
+### Prepare Flink test table
 
 ```bash
-# 登录Flink客户端
+# Log in to the Flink client
 ./bin/sql-client.sh
 
-# 设置check point间隔为3s
+# Set the check point interval to 3s
 SET 'execution.checkpointing.interval' = '3s';
 
-# 创建Flink source表，用于订阅PolarDB-X增量数据
+# Create a Flink source table for subscribing to PolarDB-X incremental data
 CREATE TABLE trades (
-    id integer,
-    shop_id integer,
-    pay_amount decimal, 
-    stat_date date,
-    PRIMARY KEY (id) NOT ENFORCED
-  ) WITH (
-    'connector' = 'mysql-cdc',
-    'hostname' = 'localhost',
-    'port' = '8527',
-    'username' = 'polardbx_root',
-    'password' = '123456',
-    'database-name' = 'flink_cdc_demo',
-    'table-name' = 'trades'
-  );
+id integer,
+shop_id integer,
+pay_amount decimal,
+stat_date date,
+PRIMARY KEY (id) NOT ENFORCED
+) WITH (
+'connector' = 'mysql-cdc',
+'hostname' = 'localhost',
+'port' = '8527',
+'username' = 'polardbx_root',
+'password' = '123456',
+'database-name' = 'flink_cdc_demo',
+'table-name' = 'trades'
+);
 
-# 观察PolarDB-X的数据变化
-select * from trades; 
+# Observe the data changes of PolarDB-X
+select * from trades;
 
-# 创建Flink sink表，用于将统计数据写回PolarDB-X
+# Create a Flink sink table for writing statistical data back to PolarDB-X
 
 CREATE TABLE shop_gmv_d (
-    stat_date date,
-    shop_id integer,
-    gmv decimal,
-    primary key(stat_date, shop_id) NOT ENFORCED
- ) WITH (
-   'connector' = 'jdbc',
-   'url' = 'jdbc:mysql://localhost:8527/flink_cdc_demo',
-   'username' = 'polardbx_root',
-   'password' = '123456',
-   'table-name' = 'shop_gmv_d'
- );
+stat_date date,
+shop_id integer,
+gmv decimal,
+primary key(stat_date, shop_id) NOT ENFORCED
+) WITH (
+'connector' = 'jdbc',
+'url' = 'jdbc:mysql://localhost:8527/flink_cdc_demo',
+'username' = 'polardbx_root',
+'password' = '123456',
+'table-name' = 'shop_gmv_d'
+);
 
-# 实时计算1天的成交总额，并写回PolarDB-X
+# Calculate the total turnover of 1 day in real time and write it back to PolarDB-X
 insert into shop_gmv_d
 select stat_date, shop_id, sum(pay_amount) as gmv
 from trades group by stat_date, shop_id;
 ```
 
-示例截图：
+Example screenshot:
 
 ![Flink SQL Client](../images/screenshot_flink_sql_client.png)
 
-登录PolarDB-X验证Flink写入结果：
+Log in to PolarDB-X to verify Flink write results:
 
 ```sql
-# 登录PolarDB-X
+# Login to PolarDB-X
 mysql -h127.1 -P8527 -upolardbx_root -p"123456"
 
-# 切换数据库
+# switch database
 use flink_cdc_demo;
 
-# 观察成交金额变化
+# Observe the transaction amount change
 select * from shop_gmv_d;
 
-# 继续模拟用户的下单行为
+# Continue to simulate the user's order behavior
 insert trades values(default, 1001, 10, '2022-03-15');
 insert trades values(default, 1001, 10, '2022-03-15');
 insert trades values(default, 1001, 10, '2022-03-15');
 insert trades values(default, 1001, 10, '2022-03-15');
 insert trades values(default, 1001, 10, '2022-03-15');
 
-# 观察成交金额变化
+# Observe the transaction amount change
 select * from shop_gmv_d;
 ```
 
-继续模拟trades的支付行为，可以观察到GMV的值在不断增长：
+Continuing to simulate the payment behavior of trades, it can be observed that the value of GMV is constantly increasing:
 
 <img src="../images/screenshot_polardbx_gmv.png" alt="GMV" width="400" />
 
-## 配置Grafana
+## Configure Grafana
 
-您可以通过使用可视化工具，更直观地观测数据的变化。
+You can observe data changes more intuitively by using visualization tools.
 
-### 下载Grafana
+### Download Grafana
 
 ```bash
-# 下载Grafana
+# Download Grafana
 wget https://mirrors.huaweicloud.com/grafana/7.1.5/grafana-7.1.5.darwin-amd64.tar.gz
 
-# 解压
+# unzip
 tar -xzvf grafana-7.1.5.darwin-amd64.tar.gz
 cd grafana-7.1.5
 ```
 
-### 修改参数
+### Change parameters
 
-将默认刷新间隔由5s修改为60ms，使图表可以实时刷新：
+Change the default refresh interval from 5s to 60ms, so that the chart can be refreshed in real time:
 
 ```bash
 vi conf/defaults.ini
-# 修改参数
+# Change parameters
 min_refresh_interval = 60ms
 
-# 启动Grafana
+# start Grafana
 ./bin/grafana-server web
 ```
 
-访问Grafana控制台[http://localhost:3000](http://localhost:3000/)（默认用户名和密码均为admin）。
+Access the Grafana console [http://localhost:3000](http://localhost:3000/) (the default username and password are both admin).
 
-### 配置Dashboard
+### Configure Dashboard
 
-单击“Configuration”->“Data Sources”->“Add data source”，新增数据源。
+Click "Configuration" -> "Data Sources" -> "Add data source" to add a new data source.
 
 ![Add Data Source](../images/grafana_datasource_add.png)
 
 ![Edit Data Source](../images/grafana_datasource_edit.png)
 
-新增Dashboard，修改配置：
+Add Dashboard and modify the configuration:
 
-- Visualization：选择“Stat“
-- SQL：输入”select gmv from shop_gmv_d“
-- Format：设为”Table“
+- Visualization: select "Stat"
+- SQL: Enter "select gmv from shop_gmv_d"
+- Format: set to "Table"
 
 ![Edit Dashboard Configuration](../images/grafana_panel_edit.png)
 
-实时刷新数据：
+Refresh data in real time:
 
 <img src="../images/grafana_dashboard_show.png" alt="Real-Time GMV" width="400" />

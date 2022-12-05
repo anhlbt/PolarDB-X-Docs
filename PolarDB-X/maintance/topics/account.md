@@ -1,14 +1,14 @@
-账号权限管理 
+Account authority management
 ===========================
 
-本文介绍了账号权限管理的相关操作。
+This article introduces the related operations of account permission management.
 
-PolarDB-X账号和权限系统的用法与MySQL 5.7一致，支持GRANT、REVOKE、SHOW GRANTS、CREATE USER、DROP USER、SET PASSWORD等语句，目前支持库级和表级权限的授予，全局级别和列级别权限暂时不支持。
+The usage of the PolarDB-X account and permission system is consistent with MySQL 5.7, and supports statements such as GRANT, REVOKE, SHOW GRANTS, CREATE USER, DROP USER, SET PASSWORD, etc. Currently, it supports the granting of library-level and table-level permissions, global-level and column-level permissions Currently not supported.
 
-创建账号 
+Create an account
 -------------------------
 
-语法：
+grammar:
 
 ```sql
 CREATE USER [IF NOT EXISTS] user IDENTIFIED BY 'password';
@@ -16,42 +16,42 @@ CREATE USER [IF NOT EXISTS] user IDENTIFIED BY 'password';
 
 
 
-其中，user通过用户名和主机名的组合`'username'@'host'`确定了一个账号，账号规则如下：
+Among them, user determines an account through the combination of user name and host name `'username'@'host'`, and the account rules are as follows:
 
-* username为创建的用户名，用户名遵循以下规则；
-  * 大小写敏感；
-  
-  * 长度必须大于等于4个字符，小于等于20个字符；
-  
-  * 必须以字母开头；
-  
-  * 字符可以包括大写字母、小写字母、数字。
-  
+* username is the created username, and the username follows the following rules;
+* Case Sensitive;
 
-  
+* The length must be greater than or equal to 4 characters and less than or equal to 20 characters;
 
-* host指定了创建用户可以在哪台主机上登录，用户名一样但是主机名不一样也代表不同的账号，需满足以下规则：
-  * HOST必须是纯IP地址，可以包含_和%通配符（_代表一个字符，%代表0个或多个字符）。含有通配符的HOST需要加上单引号，例如lily@'0.9.%.%'，david@'%'；
-  
-  * 假设系统中有两个用户都符合当前准备登录的用户，则以最长前缀匹配（不包含通配符的最长IP段）的那个用户为准。例如系统有两个用户david@'30.9.12_.234'和david@'30.9.1%.234'，在主机30.9.127.234上面登录david，则使用的是david@'30.9.12_.234'这个用户；
-  
-  * 开启VPC时，主机的IP地址会发生变化。为避免账号和权限系统中的配置无效，请将HOST配置为'%'来匹配任意IP。
-  
+* must start with a letter;
 
-  
-
-* password为用户密码，需满足以下规则：
-  * 长度必须大于等于6个字符，小于等于20个字符；
-  
-  * 字符可以包括大写字母、小写字母、数字、特殊字符（@#$%\^\&+=）。
-  
-
-  
+* Characters can include uppercase letters, lowercase letters, numbers.
 
 
 
 
-示例：
+* host specifies the host on which the created user can log in. The same user name but different host names also represent different accounts, and the following rules must be met:
+* HOST must be a pure IP address, which can contain _ and % wildcards (_ represents one character, % represents 0 or more characters). HOSTs containing wildcards need to be enclosed in single quotes, such as lily@'0.9.%.%', david@'%';
+
+* Assuming that there are two users in the system who both match the user who is currently ready to log in, the user with the longest prefix match (the longest IP segment excluding wildcards) shall prevail. For example, the system has two users david@'30.9.12_.234' and david@'30.9.1%.234'. If you log in to david on the host 30.9.127.234, you will use david@'30.9.12_.234' user;
+
+* When VPC is enabled, the IP address of the host will change. To avoid invalid configuration in the account and permission system, please configure HOST as '%' to match any IP.
+
+
+
+
+* password is the user password, which must meet the following rules:
+* The length must be greater than or equal to 6 characters and less than or equal to 20 characters;
+
+* Characters can include uppercase letters, lowercase letters, numbers, special characters (@#$%\^\&+=).
+
+
+
+
+
+
+
+Example:
 
 ```sql
 mysql> CREATE USER 'user1'@'127.0.0.1' IDENTIFIED BY '123456';
@@ -60,10 +60,10 @@ mysql> CREATE USER IF NOT EXISTS 'user2'@'%' identified by '123456';
 
 
 
-修改账号密码 
+Change account password
 ---------------------------
 
-语法：
+grammar:
 
 ```sql
 SET PASSWORD FOR user = PASSWORD('auth_string')
@@ -71,7 +71,7 @@ SET PASSWORD FOR user = PASSWORD('auth_string')
 
 
 
-示例：
+Example:
 
 ```sql
 mysql> SET PASSWORD FOR 'user1'@'127.0.0.1' = PASSWORD('654321');
@@ -79,10 +79,10 @@ mysql> SET PASSWORD FOR 'user1'@'127.0.0.1' = PASSWORD('654321');
 
 
 
-删除账号 
+delete account
 -------------------------
 
-语法：
+grammar:
 
 ```sql
 DROP USER user;
@@ -90,7 +90,7 @@ DROP USER user;
 
 
 
-示例：
+Example:
 
 ```sql
 mysql> DROP USER 'user2'@'%';
@@ -98,10 +98,10 @@ mysql> DROP USER 'user2'@'%';
 
 
 
-授予账号权限 
+Grant account permissions
 ---------------------------
 
-语法：
+grammar:
 
 ```sql
 GRANT privileges ON database.table TO user;
@@ -109,26 +109,26 @@ GRANT privileges ON database.table TO user;
 
 
 
-其中，privileges为具体权限类型，数据库权限级别从高到低依次是：全局级别权限（暂不支持）、数据库级别权限、表级别权限、列级别权限。PolarDB-X目前支持和表相关联的8个基本权限项：CREATE、DROP、ALTER、INDEX、INSERT、DELETE、UPDATE、SELECT。
+Among them, privileges is a specific permission type, and the database permission levels from high to low are: global level permissions (not supported for now), database level permissions, table level permissions, and column level permissions. PolarDB-X currently supports 8 basic permission items associated with tables: CREATE, DROP, ALTER, INDEX, INSERT, DELETE, UPDATE, SELECT.
 
-* TRUNCATE操作需要有表上的DROP权限；
+* TRUNCATE operation requires DROP permission on the table;
 
-* REPLACE操作需要有表上的INSERT和DELETE权限；
+* REPLACE operation requires INSERT and DELETE permissions on the table;
 
-* CREATE INDEX 和 DROP INDEX操作需要有表上的INDEX权限；
+* CREATE INDEX and DROP INDEX operations require INDEX permission on the table;
 
-* CREATE SEQUENCE需要有数据库级的创建表（CREATE）权限；
+* CREATE SEQUENCE requires database-level create table (CREATE) permission;
 
-* DROP SEQUENCE需要有数据库级的删除表（DROP）权限；
+* DROP SEQUENCE requires database-level delete table (DROP) permission;
 
-* ALTER SEQUENCE需要有数据库级的更改表（ALTER）权限；
+* ALTER SEQUENCE requires database-level alter table (ALTER) permission;
 
-* INSERT ON DUPLICATE UPDATE语句需要有表上的INSERT和UPDATE权限。
-
-
+* The INSERT ON DUPLICATE UPDATE statement requires INSERT and UPDATE permissions on the table.
 
 
-示例：
+
+
+Example:
 
 ```sql
 mysql> GRANT SELECT,UPDATE ON `db1`.* TO 'user1'@'127.0.0.1';
@@ -136,10 +136,10 @@ mysql> GRANT SELECT,UPDATE ON `db1`.* TO 'user1'@'127.0.0.1';
 
 
 
-查看账号权限 
+View account permissions
 ---------------------------
 
-语法：
+grammar:
 
 ```sql
 SHOW GRANTS [FOR user];
@@ -147,9 +147,9 @@ SHOW GRANTS [FOR user];
 
 
 
-可以使用current_user()来获取当前用户。
+You can use current_user() to get the current user.
 
-示例：
+Example:
 
 ```sql
 mysql> SHOW GRANTS FOR 'user1'@'127.0.0.1';
@@ -170,10 +170,10 @@ mysql> SHOW GRANTS FOR current_user();
 
 
 
-回收账号权限 
+Reclaim Account Permissions
 ---------------------------
 
-语法：
+grammar:
 
 ```sql
 REVOKE privileges ON database.table TO user;
@@ -181,7 +181,7 @@ REVOKE privileges ON database.table TO user;
 
 
 
-示例：
+Example:
 
 ```sql
 mysql> REVOKE UPDATE ON db1.* FROM 'user1'@'127.0.0.1';

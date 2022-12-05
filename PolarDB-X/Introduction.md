@@ -1,40 +1,40 @@
-# PolarDB-X简介
+# Introduction to PolarDB-X
 
-PolarDB-X 是一款面向超高并发、海量存储、复杂查询场景设计的云原生分布式数据库系统。其采用 Shared-nothing 与存储计算分离架构，支持水平扩展、分布式事务、混合负载等能力，具备企业级、云原生、高可用、高度兼容 MySQL 系统及生态等特点。
+PolarDB-X is a cloud-native distributed database system designed for ultra-high concurrency, massive storage, and complex query scenarios. It adopts a shared-nothing and storage computing separation architecture, supports horizontal expansion, distributed transactions, mixed load and other capabilities, and has the characteristics of enterprise level, cloud native, high availability, and high compatibility with MySQL system and ecology.
 
-PolarDB-X 最初为解决阿里巴巴天猫“双十一”核心交易系统数据库扩展性瓶颈而生，之后伴随阿里云一路成长，是一款经过多种核心业务场景验证的、成熟稳定的数据库系统。
-PolarDB-X 的核心特性如下：
+PolarDB-X was originally born to solve the database scalability bottleneck of Alibaba's Tmall "Double Eleven" core transaction system, and has since grown along with Alibaba Cloud. It is a mature and stable database system that has been verified by multiple core business scenarios.
+The core features of PolarDB-X are as follows:
 
-- 水平扩展
+- Horizontal expansion
 
-PolarDB-X 采用 Shared-nothing 架构进行设计，支持多种 Hash 和 Range 数据拆分算法，通过隐式主键拆分和数据分片动态调度，实现系统的透明水平扩展。
-
-
-- 分布式事务
-
-PolarDB-X 采用 MVCC + TSO 方案及 2PC 协议实现分布式事务。事务满足 ACID 特性，支持 RC/RR 隔离级别，并通过一阶段提交、只读事务、异步提交等优化实现事务的高性能。
+PolarDB-X is designed with Shared-nothing architecture, supports multiple Hash and Range data splitting algorithms, realizes transparent horizontal expansion of the system through implicit primary key splitting and dynamic scheduling of data fragmentation.
 
 
-- 混合负载
+- Distributed transactions
 
-PolarDB-X 通过原生 MPP 能力实现对分析型查询的支持，通过 CPU quota 约束、内存池化、存储资源分离等实现了 OLTP 与 OLAP 流量的强隔离。
-
-
-- 企业级
-
-PolarDB-X 为企业场景设计了诸多内核能力，例如 SQL 限流、SQL Advisor、TDE、三权分立、Flashback Query 等。
+PolarDB-X uses the MVCC + TSO scheme and 2PC protocol to implement distributed transactions. Transactions meet ACID characteristics, support RC/RR isolation level, and achieve high performance of transactions through optimizations such as one-phase commit, read-only transaction, and asynchronous commit.
 
 
-- 云原生
+- mixed load
 
-PolarDB-X 在阿里云上有多年的云原生实践，支持通过 K8S Operator 管理集群资源，支持公有云、混合云、专有云等多种形态进行部署，并支持国产化操作系统和芯片。
-
-
-- 高可用
-
-通过多数派 Paxos 协议实现数据强一致，支持两地三中心、三地五副本等多种容灾方式，同时通过 Table Group、Geo-locality 等提高系统可用性。
+PolarDB-X supports analytical queries through native MPP capabilities, and achieves strong isolation between OLTP and OLAP traffic through CPU quota constraints, memory pooling, and storage resource separation.
 
 
-- 兼容 MySQL 系统及生态
+- Enterprise
 
-PolarDB-X 的目标是完全兼容 MySQL ，目前兼容的内容包括 MySQL 协议、MySQL 大部分语法、Collation、事务隔离级别、Binlog 等。
+PolarDB-X has designed many core capabilities for enterprise scenarios, such as SQL current limiting, SQL Advisor, TDE, separation of powers, Flashback Query, etc.
+
+
+- Cloud native
+
+PolarDB-X has many years of cloud-native practice on Alibaba Cloud, supports management of cluster resources through K8S Operator, supports deployment in various forms such as public cloud, hybrid cloud, and proprietary cloud, and supports localized operating systems and chips.
+
+
+- High availability
+
+Strong data consistency is achieved through the majority Paxos protocol, and multiple disaster recovery methods such as three centers in two places and five replicas in three places are supported. At the same time, system availability is improved through Table Group and Geo-locality.
+
+
+- Compatible with MySQL system and ecology
+
+The goal of PolarDB-X is to be fully compatible with MySQL. Currently, the compatible content includes MySQL protocol, most of MySQL syntax, Collation, transaction isolation level, Binlog, etc.

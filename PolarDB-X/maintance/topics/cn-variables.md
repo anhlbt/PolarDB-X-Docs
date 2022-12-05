@@ -1,115 +1,115 @@
-计算层变量 
+Calculation layer variables
 ==========================
 
-PolarDB-X是存储计算分离架构，这里主要罗列了常见CN变量（其中部分变量控制台可配置）。
+PolarDB-X is a storage-computing separation architecture. Common CN variables are listed here (some of which are configurable in the console).
 
 
-|                     变量名                      |       是否重启        |       默认值       |                                 范围                                  |                                备注                                |
+| Variable name | Restart or not | Default value | Scope | Remarks |
 |----------------------------------------------|-------------------|-----------------|---------------------------------------------------------------------|------------------------------------------------------------------|
-| PLAN_CACHE                                   | 否                 | TRUE            | [TURE/FALSE]                                                     | 计划缓存的开关                                                          |
-| ENABLE_RECYCLEBIN                            | 否                 | FALSE           | [TURE/FALSE]                                                     | 开启回收站的开关                                                         |
-| SHOW_TABLES_CACHE                            | 否                 | FALSE           | [TURE/FALSE]                                                     | 是否对show tables结果做缓存                                              |
-| MERGE_CONCURRENT                             | 否                 | FALSE           | [TURE/FALSE]                                                     | 全并行执行开关，主要影响DDL和全下推的简单查询的并行执行度                                   |
-| MERGE_UNION                                  | 否                 | FALSE           | [TURE/FALSE]                                                     | 默认关闭，打开意味着物理SQL不做union优化，且将串行执行下推的物理SQL                          |
-| MERGE_UNION_SIZE                             | 否                 | -1              | [0-10000]                                                         | 通过union合并物理SQL的数量，默认结合连接池可用连接数自适应推导                              |
-| TABLE_META_CACHE_EXPIRE_TIME                 | 否                 | 300             | [0-180000]                                                        | 元数据缓存过期时间                                                        |
-| COLUMN_LABEL_INSENSITIVE                     | 否                 | TRUE            | [FALSE/TRUE]                                                     | 返回列大小写是否敏感                                                       |
-| RECORD_SQL                                   | 否                 | TRUE            | [FALSE/TRUE]                                                     | 审计日志开关                                                           |
-| SOCKET_TIMEOUT                               | 否                 | 900000          | [0~3600000]                                                      | 物理SQL超时时间                                                        |
-| TRANSACTION_POLICY                           | 否                 | TSO             | [XA/TSO/TSO_READONLY]                                           | 事务策略                                                             |
-| SHARE_READ_VIEW                              | 否                 | FALSE           | [TRUE/FALSE]                                                     | 共享ReadView开关                                                     |
-| ENABLE_TRX_SINGLE_SHARD_OPTIMIZATION         | 否                 | TRUE            | [TRUE/FALSE]                                                     | 事务单分片优化开关                                                        |
-| GET_TSO_TIMEOUT                              | 否                 | 10              | [1-1800]                                                          | 获取TSO时间戳超时时间                                                     |
-| MAX_TRX_DURATION                             | 否                 | 28800           | [1-180000]                                                        | 事务物理超时时间                                                         |
-| TRANSACTION_ISOLATION                        | 否                 | REPEATABLE_READ | [READ_UNCOMMITTED/<br />READ_COMMITTED/<br />REPEATABLE_READ/<br />SERIALIZABLE] | 事务隔离级别                                                           |
-| GROUP_CONCURRENT_BLOCK                       | 否                 | TRUE            | [TRUE/FALSE]                                                     | 非MPP模式下分库级别执行策略                                                  |
-| SEQUENTIAL_CONCURRENT_POLICY                 | 否                 | FALSE           | [TRUE/FALSE]                                                     | 非MPP模式下单并发执行策略                                                   |
-| DML_SKIP_DUPLICATE_CHECK_FOR_PK              | 否                 | TRUE            | [TRUE/FALSE]                                                     | DML过程中是否跳过主键的冲突检查                                                |
-| DML_SKIP_CRUCIAL_ERR_CHECK                   | 否                 | FALSE           | [TRUE/FALSE]                                                     | DML过程中是否允许有DML报错的事务继续提交                                          |
-| DML_USE_RETURNING                            | 否                 | TRUE            | [TRUE/FALSE]                                                     | 是否使用 returning 优化                                                |
-| BROADCAST_DML                                | 否                 | FALSE           | [TRUE/FALSE]                                                     | 是否允许广播表的写入不走分布式事务                                                |
-| SEQUENCE_STEP                                | 否                 | 10000           | [1-10000000]                                                      | SEQUENCE步长,默认为10万                                                |
-| MERGE_DDL_TIMEOUT                            | 否                 | 0               | [1-10000000]                                                      | DDL物理连接超时时间, 默认是0，不超时                                            |
-| MERGE_DDL_CONCURRENT                         | 否                 | FALSE           | [FALSE/TRUE]                                                     | ddl是否采用全并行模式, 默认库级并发                                             |
-| SLOW_SQL_TIME                                | 否                 | 1000            | [1-180000]                                                        | 慢SQL阈值                                                           |
-| LOAD_DATA_BATCH_INSERT_SIZE                  | 否                 | 1024            | [1-180000]                                                        | LOAD DATA 每次batch insert的记录条数                                    |
-| LOAD_DATA_CACHE_BUFFER_SIZE                  | 否                 | 60              | [1-180000]                                                        | LOAD DATA 缓存大小, 默认60Mb,主要做流控                                     |
-| MAX_ALLOWED_PACKET                           | 否                 | 16777216        | [4194304-33554432]                                                | 最大包大小                                                            |
-| KILL_CLOSE_STREAM                            | 否                 | FALSE           | [FALSE/TRUE]                                                     | 是否开启物理连接流式早停功能                                                   |
-| ALLOW_SIMPLE_SEQUENCE                        | 否                 | FALSE           | [FALSE/TRUE]                                                     | 是否允许使用simple sequence                                            |
-| MAX_PARAMETERIZED_SQL_LOG_LENGTH             | 否                 | 5000            | [1-1000000]                                                       | 参与参数化SQL日志打印的最大长度                                                |
-| FORBID_EXECUTE_DML_ALL                       | 否                 | TRUE            | [TRUE/FALSE]                                                     | 是否禁止全表删除/更新                                                      |
-| GROUP_SEQ_CHECK_INTERVAL                     | 是                 | 60              | [1-36000]                                                         | 检查插入显式值的周期/间隔，单位秒                                                |
-| JOIN_BLOCK_SIZE                              | 是                 | 300             | [1-100000]                                                        | 在非动态裁剪下BKAJOIN执行时的IN Values个数                                    |
-| LOOKUP_JOIN_MAX_BATCH_SIZE                   | 是                 | 6400            | [1-100000]                                                        | BKAJOIN执行时的最大IN Values个数                                         |
-| LOOKUP_JOIN_MIN_BATCH_SIZE                   | 是                 | 100             | [1-100000]                                                        | BKAJOIN执行时的最大IN Values个数                                         |
-| PURGE_TRANS_INTERVAL                         | 是                 | 300             | [1-180000]                                                        | 事务日志清理间隔                                                         |
-| PURGE_TRANS_BEFORE                           | 是                 | 1800            | [1-180000]                                                        | 清理多久之前的事务日志                                                      |
-| ENABLE_BACKGROUND<br />_STATISTIC_COLLECTION | 否                 | TRUE            | [TRUE/FALSE]                                                     | 是否允许统计数据采集                                                       |
-| GENERAL_DYNAMIC_SPEED_LIMITATION             | 否                 | -1              | [-1-10000000]                                                     | 数据回填、校验动态限速调整，-1为默认限制                                            |
-| PARALLELISM                                  | 否                 | -1              | [1-1024]                                                          | 单机并行的并行度，默认是由规格推导出来                                              |
-| LOGICAL_DB_TIME_ZONE                         | 否                 | SYSTEM          | [SYSTEM/±HH:mm]                                                  | 数据库时区                                                            |
-| MPP_PARALLELISM                              | 否                 | -1              | [1-1024]                                                          | MPP执行模式的并发度，默认是由规格推导出来                                           |
-| DATABASE_PARALLELISM                         | 否                 | 0               | [0-1024]                                                          | 单个查询在一个DN上允许同时下发SQL的数量，用户计算Scan的并发度                              |
-| POLARDBX_PARALLELISM                         | 否                 | 0               | [0-1024]                                                          | 单个查询在一个CN允许的最大并发度, 默认是CPU核数                                      |
-| MPP_METRIC_LEVEL                             | 否                 | 3               | [0/1/2/3]                                                      | 计算过程中统计信息收集程度，级别越高说明收集粒度越细                                       |
-| ENABLE_COMPLEX_DML_CROSS_DB                  | 否                 | TRUE            | [TRUE/FALSE]                                                     | 是否支持跨库复杂DML                                                      |
-| PER_QUERY_MEMORY_LIMIT                       | 是                 | -1              | [-1-9223372036854775807]                                          | 查询级内存池大小限制，默认是全局连接池的三分之一                                         |
-| ENABLE_SPILL                                 | 否                 | FALSE           | [FALSE/TRUE]                                                     | 临时表落盘的开关                                                         |
-| CONN_POOL_MIN_POOL_SIZE                      | 否                 | 20              | [0-10]                                                            | 物理分库链接数最小值                                                       |
-| CONN_POOL_MAX_POOL_SIZE                      | 否                 | 60              | [1-1600]                                                          | 物理分库链接数最大值                                                       |
-| CONN_POOL_MAX_WAIT_THREAD_COUNT              | 否                 | 0               | [-1-8192]                                                         | 单分库最大等待建连数(DRUID)                                                |
-| CONN_POOL_IDLE_TIMEOUT                       | 否                 | 30              | [1-60]                                                            | 物理空闲链接超时时间                                                       |
-| CONN_POOL_BLOCK_TIMEOUT                      | 否                 | 5000            | [1000-60000]                                                      | 物理连接池获取连接的最大等待时间                                                 |
-| CONN_POOL_XPROTO_MAX<br />_POOLED_SESSION_PER_INST | 否                 | 512             | [1-8192]                                                          | 单个存储节点最大缓存会话数(私有协议)                                              |
-| XPROTO_MAX_DN_CONCURRENT                     | 否                 | 500             | [1-8192]                                                          | 单个存储节点最大并发请求数(私有协议)                                              |
-| XPROTO_MAX_DN_WAIT_CONNECTION                | 否                 | 32              | [1-8192]                                                          | 单个存储节点最大请求等待数(私有协议)                                              |
-| MERGE_SORT_BUFFER_SIZE                       | 否                 | 2048            | [1024-81920]                                                      | TableScan层做归并排序使用的缓存大小，默认2Mb                                     |
-| WORKLOAD_TYPE                                | 否                 |                 | [AP/TP]                                                          | 是否指定查询的workload，默认基于代价智能识别负载                                     |
-| EXECUTOR_MODE                                | 否                 |                 | [MPP/TP_LOCAL/AP_LOCAL]                                         | 是否指定查询的执行模式，默认基于workload选择执行模式                                   |
-| ENABLE_MASTER_MPP                            | 否                 | FALSE           | [TRUE/FALSE]                                                     | 是否在主实例上开启MPP能力                                                   |
-| LOOKUP_JOIN_BLOCK_SIZE_PER_SHARD             | 是                 | 50              | [1-100000]                                                        | 在裁剪下BKAJOIN执行时的单分片约定的IN Values个数                                 |
-| ENABLE_RUNTIME_FILTER                        | 否                 | TRUE            | [TRUE/FALSE]                                                     | Runtime Filter的开关                                                |
-| FEEDBACK_WORKLOAD_AP_THRESHOLD               | 否                 | FALSE           | [TRUE/FALSE]                                                     | 针对AP查询的HTAP FEEDBACK开关                                           |
-| FEEDBACK_WORKLOAD_TP_THRESHOLD               | 否                 | FALSE           | [TRUE/FALSE]                                                     | 针对TP查询的HTAP FEEDBACK开关                                           |
-| MASTER_READ_WEIGHT                           | 否                 | -1              | [0-100]                                                           | 基于规则的读写分离权重                                                      |
-| SHOW_ALL_PARAMS                              | 否                 | FALSE           | [TRUE/FALSE]                                                     | 是否显示SHOW 全部变量                                                    |
-| ENABLE_SET_GLOBAL                            | 否                 | FALSE           | [TRUE/FALSE]                                                     | 启动SET GLOBAL语句开关                                                 |
-| FORCE_READ_OUTSIDE_TX                        | 否                 | FALSE           | [TRUE/FALSE]                                                     | 事务内是否在一个分库上强制开启多个连接                                              |
-| ENABLE_COROUTINE                             | 是                 | FALSE           | [TRUE/FALSE]                                                     | 是否开启wisp协程                                                       |
-| TRUNCATE_TABLE_WITH_GSI                      | 否 | FALSE           | [TRUE/FALSE]                                                     | 是否允许truncate包含gsi的表                                              |
-| DDL_ON_GSI                                   | 否                 | FALSE           | [TRUE/FALSE]                                                     | 是否允许直接在GSI表做DDL                                                  |
-| DML_ON_GSI                                   | 否                 | FALSE           | [TRUE/FALSE]                                                     | 是否允许直接在GSI表做DML                                                  |
-| ENABLE_HASH_JOIN                             | 否                 | TRUE            | [TRUE/FALSE]                                                     | 优化查询计划过程中是否与允许HashJoin节点的生成                                      |
-| ENABLE_BKA_JOIN                              | 否                 | TRUE            | [TRUE/FALSE]                                                     | 优化查询计划过程中是否允许BKAJoin节点生成                                         |
-| ENABLE_NL_JOIN                               | 否                 | TRUE            | [TRUE/FALSE]                                                     | 优化查询计划过程中是否允许NLJoin节点生成                                          |
-| ENABLE_SEMI_NL_JOIN                          | 否                 | TRUE            | [TRUE/FALSE]                                                     | 优化查询计划过程中是否允许将SemiJoin转成NLJoin来实现                                |
-| ENABLE_SEMI_HASH_JOIN                        | 否                 | TRUE            | [TRUE/FALSE]                                                     | 优化查询计划过程中是否允许将SemiJoin转成HashJoin来实现                              |
-| ENABLE_SEMI_BKA_JOIN                         | 否                 | TRUE            | [TRUE/FALSE]                                                     | 优化查询计划过程中是否允许将SemiJoin转成BKAJoin来实现                               |
-| ENABLE_SEMI_SORT_MERGE_JOIN                  | 否                 | TRUE            | [TRUE/FALSE]                                                     | 优化查询计划过程中是否允许将SemiJoin转成MergeJoin来实现                             |
-| ENABLE_MATERIALIZED_SEMI_JOIN                | 否                 | TRUE            | [TRUE/FALSE]                                                     | 优化查询计划过程中是否允许将SemiJoin转成MaterializedJoin来实现                      |
-| ENABLE_SEMI_JOIN_REORDER                     | 否                 | TRUE            | [TRUE/FALSE]                                                     | 优化查询计划过程中是否允许将SemiJoin参与CBO Reorder优化                            |
-| ENABLE_HASH_AGG                              | 否                 | TRUE            | [TRUE/FALSE]                                                     | 优化查询计划过程中是否允许生成HashAgg节点生成                                       |
-| ENABLE_PARTIAL_AGG                           | 否                 | TRUE            | [TRUE/FALSE]                                                     | 优化查询计划过程中是否允许将Agg拆分成二阶段来实现                                       |
-| ENABLE_SORT_AGG                              | 否                 | TRUE            | [TRUE/FALSE]                                                     | 优化查询计划过程中是否允许生成SortAgg节点生成                                       |
-| ENABLE_PUSH_PROJECT                          | 否                 | TRUE            | [TRUE/FALSE]                                                     | 优化查询计划过程中是否允许Project PushDown                                    |
-| ENABLE_PUSH_JOIN                             | 否                 | TRUE            | [TRUE/FALSE]                                                     | 优化查询计划过程中是否允许Join PushDown                                       |
-| ENABLE_PUSH_AGG                              | 否                 | TRUE            | [TRUE/FALSE]                                                     | 优化查询计划过程中是否允许Agg PushDown                                        |
-| ENABLE_CBO_PUSH_AGG                          | 否                 | TRUE            | [TRUE/FALSE]                                                     | 优化查询计划过程中是否允许Agg 透传Join                                          |
-| ENABLE_PUSH_SORT                             | 否                 | TRUE            | [TRUE/FALSE]                                                     | 优化查询计划过程中是否允许Sort PushDown                                       |
-| ENABLE_STATISTIC_FEEDBACK                    | 否                 | TRUE            | [TRUE/FALSE]                                                     | 是否支持统计信息修正的Feedback                                              |
-| ENABLE_CBO_PUSH_JOIN                         | 否                 | TRUE            | [TRUE/FALSE]                                                     | 优化查询计划过程中是否允许Join 透传优化                                           |
-| ENABLE_SORT_JOIN_TRANSPOSE                   | 否                 | TRUE            | [TRUE/FALSE]                                                     | 优化查询计划过程中是否允许Sort 透传Join                                         |
-| CHUNK_SIZE                                   | 否                 | 1024            | [1-10240]                                                         | 设置执行器每次计算的批次大小                                                   |
-| ENABLE_SORT_MERGE_JOIN                       | 否                 | TRUE            | [TRUE/FALSE]                                                     | 优化查询计划过程中是否禁止MergeJoin节点生成                                       |
-| ENABLE_BKA_PRUNING                           | 否                 | TRUE            | [TRUE/FALSE]                                                     | 是否开启BKAJoin的裁剪功能                                                 |
-| ENABLE_SPM                                   | 否                 | TRUE            | [TRUE/FALSE]                                                     | 是否开启执行计划管理                                                       |
-| ENABLE_EXPRESSION_VECTORIZATION              | 否                 | TRUE            | [TRUE/FALSE]                                                     | 是否开启表达式的向量化计算                                                    |
-| FORCE_DDL_ON_LEGACY_ENGINE                   | 否                 | TRUE            | [TRUE/FALSE]                                                     | 是否启用新DDL引擎                                                       |
-| PURE_ASYNC_DDL_MODE                          | 否                 | TRUE            | [TRUE/FALSE]                                                     | 是否以非阻塞的形式执行ddl任务，默认开启意味着客户端执行ddl后立即返回，通过show [full] ddl查看执行的情况 |
-| DDL_JOB_REQUEST_TIMEOUT                      | 否                 | 90000           | [1-9223372036854775807]                                           | 设置DDL执行的最大超时时间，默认是25天                                            |
-| LOGICAL_DDL_PARALLELISM                      | 否                 | 1               | [1-10240]                                                         | 配置逻辑DDL执行的并发度，设置为1意味着是串行执行DDL任务                                  |
-| ENABLE_BROADCAST_RANDOM_READ                 | 否                 | TRUE            | [TRUE/FALSE]                                                     | 是否开启广播表随机读优化                                                     |
+| PLAN_CACHE | NO | TRUE | [TURE/FALSE] | Switch for plan caching |
+| ENABLE_RECYCLEBIN | No | FALSE | [TURE/FALSE] | Turn on the recycle bin switch |
+| SHOW_TABLES_CACHE | No | FALSE | [TURE/FALSE] | Whether to cache the result of show tables |
+| MERGE_CONCURRENT | No | FALSE | [TURE/FALSE] | Full parallel execution switch, mainly affects the parallel execution degree of simple queries of DDL and full pushdown |
+| MERGE_UNION | No | FALSE | [TURE/FALSE] | Disabled by default, enabling means that the physical SQL does not perform union optimization, and the pushed-down physical SQL will be executed serially |
+| MERGE_UNION_SIZE | No | -1 | [0-10000] | The number of physical SQL merged by union, and the default is derived adaptively based on the number of available connections in the connection pool |
+| TABLE_META_CACHE_EXPIRE_TIME | No | 300 | [0-180000] | Metadata cache expiration time |
+| COLUMN_LABEL_INSENSITIVE | No | TRUE | [FALSE/TRUE] | Returns whether the column is case sensitive |
+| RECORD_SQL | NO | TRUE | [FALSE/TRUE] | Audit log switch |
+| SOCKET_TIMEOUT | No | 900000 | [0~3600000] | Physical SQL timeout |
+| TRANSACTION_POLICY | No | TSO | [XA/TSO/TSO_READONLY] | Transaction Policy |
+| SHARE_READ_VIEW | NO | FALSE | [TRUE/FALSE] | Share ReadView switch |
+| ENABLE_TRX_SINGLE_SHARD_OPTIMIZATION | No | TRUE | [TRUE/FALSE] | Transaction single shard optimization switch |
+| GET_TSO_TIMEOUT | No | 10 | [1-1800] | Get TSO timestamp timeout |
+| MAX_TRX_DURATION | No | 28800 | [1-180000] | Transaction physical timeout |
+| TRANSACTION_ISOLATION | No | REPEATABLE_READ | [READ_UNCOMMITTED/<br />READ_COMMITTED/<br />REPEATABLE_READ/<br />SERIALIZABLE] | Transaction isolation level |
+| GROUP_CONCURRENT_BLOCK | No | TRUE | [TRUE/FALSE] | Sub-database level execution strategy in non-MPP mode |
+| SEQUENTIAL_CONCURRENT_POLICY | No | FALSE | [TRUE/FALSE] | Concurrent execution policy for orders in non-MPP mode |
+| DML_SKIP_DUPLICATE_CHECK_FOR_PK | No | TRUE | [TRUE/FALSE] | Whether to skip primary key conflict check during DML |
+| DML_SKIP_CRUCIAL_ERR_CHECK | No | FALSE | [TRUE/FALSE] | Whether to allow transactions with DML errors to continue to be submitted during the DML process |
+| DML_USE_RETURNING | No | TRUE | [TRUE/FALSE] | Whether to use returning optimization |
+| BROADCAST_DML | No | FALSE | [TRUE/FALSE] | Whether to allow the writing of the broadcast table without going through the distributed transaction |
+| SEQUENCE_STEP | No | 10000 | [1-10000000] | SEQUENCE step size, the default is 100,000 |
+| MERGE_DDL_TIMEOUT | No | 0 | [1-10000000] | DDL physical connection timeout, the default is 0, no timeout |
+| MERGE_DDL_CONCURRENT | No | FALSE | [FALSE/TRUE] | Whether ddl adopts full parallel mode, default library-level concurrency |
+| SLOW_SQL_TIME | No | 1000 | [1-180000] | Slow SQL threshold |
+| LOAD_DATA_BATCH_INSERT_SIZE | No | 1024 | [1-180000] | The number of records for each batch insert of LOAD DATA |
+| LOAD_DATA_CACHE_BUFFER_SIZE | No | 60 | [1-180000] | LOAD DATA cache size, default 60Mb, mainly for flow control |
+| MAX_ALLOWED_PACKET | No | 16777216 | [4194304-33554432] | Maximum packet size |
+| KILL_CLOSE_STREAM | No | FALSE | [FALSE/TRUE] | Whether to enable the physical connection streaming early stop function |
+| ALLOW_SIMPLE_SEQUENCE | No | FALSE | [FALSE/TRUE] | Whether simple sequence is allowed |
+| MAX_PARAMETERIZED_SQL_LOG_LENGTH | No | 5000 | [1-1000000] | The maximum length of parameterized SQL log printing |
+| FORBID_EXECUTE_DML_ALL | No | TRUE | [TRUE/FALSE] | Whether to prohibit full table delete/update |
+| GROUP_SEQ_CHECK_INTERVAL | Yes | 60 | [1-36000] | Period/interval for checking to insert explicit values, in seconds |
+| JOIN_BLOCK_SIZE | Yes | 300 | [1-100000] | The number of IN Values ​​when BKAJOIN is executed under non-dynamic clipping |
+| LOOKUP_JOIN_MAX_BATCH_SIZE | Yes | 6400 | [1-100000] | The maximum number of IN Values ​​when BKAJOIN is executed |
+| LOOKUP_JOIN_MIN_BATCH_SIZE | Yes | 100 | [1-100000] | The maximum number of IN Values ​​when BKAJOIN is executed |
+| PURGE_TRANS_INTERVAL | Yes | 300 | [1-180000] | Transaction log purge interval |
+| PURGE_TRANS_BEFORE | Yes | 1800 | [1-180000] | How long ago to purge the transaction log |
+| ENABLE_BACKGROUND<br />_STATISTIC_COLLECTION | No | TRUE | [TRUE/FALSE] | Whether statistical data collection is allowed |
+| GENERAL_DYNAMIC_SPEED_LIMITATION | No | -1 | [-1-10000000] | Data backfilling, verification dynamic speed limit adjustment, -1 is the default limit |
+| PARALLELISM | No | -1 | [1-1024] | Parallelism of a single machine, the default is derived from the specification |
+| LOGICAL_DB_TIME_ZONE | No | SYSTEM | [SYSTEM/±HH:mm] | Database time zone |
+| MPP_PARALLELISM | No | -1 | [1-1024] | Concurrency of MPP execution mode, the default is derived from the specification |
+| DATABASE_PARALLELISM | No | 0 | [0-1024] | The number of SQLs that can be issued simultaneously on a DN for a single query, and the user calculates the concurrency of Scan |
+| POLARDBX_PARALLELISM | No | 0 | [0-1024] | The maximum concurrency allowed by a single query in one CN, the default is the number of CPU cores |
+| MPP_METRIC_LEVEL | No | 3 | [0/1/2/3] | The degree of statistical information collection during the calculation process, the higher the level, the finer the collection granularity |
+| ENABLE_COMPLEX_DML_CROSS_DB | No | TRUE | [TRUE/FALSE] | Whether to support cross-database complex DML |
+| PER_QUERY_MEMORY_LIMIT | Yes | -1 | [-1-9223372036854775807] | Query-level memory pool size limit, the default is one third of the global connection pool |
+| ENABLE_SPILL | No | FALSE | [FALSE/TRUE] | Temporary table dump switch |
+| CONN_POOL_MIN_POOL_SIZE | No | 20 | [0-10] | The minimum number of physical sub-library links |
+| CONN_POOL_MAX_POOL_SIZE | No | 60 | [1-1600] | The maximum number of physical sub-library links |
+| CONN_POOL_MAX_WAIT_THREAD_COUNT | No | 0 | [-1-8192] | The maximum number of connections waiting for a single sub-database (DRUID) |
+| CONN_POOL_IDLE_TIMEOUT | No | 30 | [1-60] | Physical idle link timeout |
+| CONN_POOL_BLOCK_TIMEOUT | No | 5000 | [1000-60000] | The maximum waiting time for the physical connection pool to obtain a connection |
+| CONN_POOL_XPROTO_MAX<br />_POOLED_SESSION_PER_INST | No | 512 | [1-8192] | The maximum cache session number of a single storage node (private protocol) |
+| XPROTO_MAX_DN_CONCURRENT | No | 500 | [1-8192] | Maximum number of concurrent requests for a single storage node (private protocol) |
+| XPROTO_MAX_DN_WAIT_CONNECTION | No | 32 | [1-8192] | The maximum request waiting number of a single storage node (private protocol) |
+| MERGE_SORT_BUFFER_SIZE | No | 2048 | [1024-81920] | The buffer size used by the TableScan layer for merge sorting, the default is 2Mb |
+| WORKLOAD_TYPE | No | | [AP/TP] | Whether to specify the workload of the query, the default is to intelligently identify the load based on the cost |
+| EXECUTOR_MODE | No | | [MPP/TP_LOCAL/AP_LOCAL] | Whether to specify the execution mode of the query, the default is to select the execution mode based on workload |
+| ENABLE_MASTER_MPP | No | FALSE | [TRUE/FALSE] | Whether to enable the MPP capability on the master instance |
+| LOOKUP_JOIN_BLOCK_SIZE_PER_SHARD | Yes | 50 | [1-100000] | The number of IN Values ​​agreed upon in a single shard when BKAJOIN is executed under pruning |
+| ENABLE_RUNTIME_FILTER | NO | TRUE | [TRUE/FALSE] | Runtime Filter switch |
+| FEEDBACK_WORKLOAD_AP_THRESHOLD | No | FALSE | [TRUE/FALSE] | HTAP FEEDBACK switch for AP query |
+| FEEDBACK_WORKLOAD_TP_THRESHOLD | NO | FALSE | [TRUE/FALSE] | HTAP FEEDBACK switch for TP queries |
+| MASTER_READ_WEIGHT | No | -1 | [0-100] | Rule-based read-write split weight |
+| SHOW_ALL_PARAMS | No | FALSE | [TRUE/FALSE] | Show SHOW all variables |
+| ENABLE_SET_GLOBAL | No | FALSE | [TRUE/FALSE] | Enable SET GLOBAL statement switch |
+| FORCE_READ_OUTSIDE_TX | No | FALSE | [TRUE/FALSE] | Whether to forcibly open multiple connections on a sub-database within a transaction |
+| ENABLE_COROUTINE | Yes | FALSE | [TRUE/FALSE] | Whether to enable the wisp coroutine |
+| TRUNCATE_TABLE_WITH_GSI | No | FALSE | [TRUE/FALSE] | Whether to allow truncate tables containing gsi |
+| DDL_ON_GSI | No | FALSE | [TRUE/FALSE] | Whether to allow DDL directly in the GSI table |
+| DML_ON_GSI | No | FALSE | [TRUE/FALSE] | Whether to allow DML directly in the GSI table |
+| ENABLE_HASH_JOIN | No | TRUE | [TRUE/FALSE] | Whether to allow generation of HashJoin nodes during query planning optimization |
+| ENABLE_BKA_JOIN | No | TRUE | [TRUE/FALSE] | Whether to allow BKAJoin node generation during query plan optimization |
+| ENABLE_NL_JOIN | No | TRUE | [TRUE/FALSE] | Whether to allow NLJoin node generation during query plan optimization |
+| ENABLE_SEMI_NL_JOIN | No | TRUE | [TRUE/FALSE] | Whether it is allowed to convert SemiJoin to NLJoin during query plan optimization |
+| ENABLE_SEMI_HASH_JOIN | No | TRUE | [TRUE/FALSE] | Whether it is allowed to convert SemiJoin into HashJoin during query plan optimization |
+| ENABLE_SEMI_BKA_JOIN | No | TRUE | [TRUE/FALSE] | Whether it is allowed to convert SemiJoin into BKAJoin during query plan optimization |
+| ENABLE_SEMI_SORT_MERGE_JOIN | No | TRUE | [TRUE/FALSE] | Whether it is allowed to convert SemiJoin into MergeJoin during query plan optimization |
+| ENABLE_MATERIALIZED_SEMI_JOIN | No | TRUE | [TRUE/FALSE] | Whether it is allowed to convert SemiJoin into MaterializedJoin during query plan optimization |
+| ENABLE_SEMI_JOIN_REORDER | No | TRUE | [TRUE/FALSE] | Whether SemiJoin is allowed to participate in CBO Reorder optimization during query plan optimization |
+| ENABLE_HASH_AGG | No | TRUE | [TRUE/FALSE] | Whether to allow HashAgg node generation during query plan optimization |
+| ENABLE_PARTIAL_AGG | No | TRUE | [TRUE/FALSE] | Whether Agg is allowed to be split into two phases during query plan optimization |
+| ENABLE_SORT_AGG | No | TRUE | [TRUE/FALSE] | Whether to allow SortAgg node generation during query plan optimization |
+| ENABLE_PUSH_PROJECT | No | TRUE | [TRUE/FALSE] | Whether to allow Project PushDown during query plan optimization |
+| ENABLE_PUSH_JOIN | No | TRUE | [TRUE/FALSE] | Whether to allow Join PushDown during query plan optimization |
+| ENABLE_PUSH_AGG | No | TRUE | [TRUE/FALSE] | Whether to allow Agg PushDown during query plan optimization |
+| ENABLE_CBO_PUSH_AGG | No | TRUE | [TRUE/FALSE] | Whether to allow Agg to transparently transmit Join during query plan optimization |
+| ENABLE_PUSH_SORT | No | TRUE | [TRUE/FALSE] | Whether to allow Sort PushDown during query plan optimization |
+| ENABLE_STATISTIC_FEEDBACK | No | TRUE | [TRUE/FALSE] | Whether to support Feedback for statistical information correction |
+| ENABLE_CBO_PUSH_JOIN | No | TRUE | [TRUE/FALSE] | Whether to allow Join transparent transmission optimization during query plan optimization |
+| ENABLE_SORT_JOIN_TRANSPOSE | No | TRUE | [TRUE/FALSE] | Whether to allow Sort to transparently transmit Join during query plan optimization |
+| CHUNK_SIZE | No | 1024 | [1-10240] | Set the batch size for each calculation of the executor |
+| ENABLE_SORT_MERGE_JOIN | No | TRUE | [TRUE/FALSE] | Whether to disable MergeJoin node generation during query plan optimization |
+| ENABLE_BKA_PRUNING | No | TRUE | [TRUE/FALSE] | Whether to enable the pruning function of BKAJoin |
+| ENABLE_SPM | No | TRUE | [TRUE/FALSE] | Whether to enable execution plan management |
+| ENABLE_EXPRESSION_VECTORIZATION | No | TRUE | [TRUE/FALSE] | Whether to enable expression vectorization |
+| FORCE_DDL_ON_LEGACY_ENGINE | No | TRUE | [TRUE/FALSE] | Whether to enable the new DDL engine |
+| PURE_ASYNC_DDL_MODE | No | TRUE | [TRUE/FALSE] | Whether to execute the ddl task in a non-blocking manner, default enabled means that the client returns immediately after executing the ddl, check the execution status through show [full] ddl |
+| DDL_JOB_REQUEST_TIMEOUT | No | 90000 | [1-9223372036854775807] | Set the maximum timeout time for DDL execution, the default is 25 days |
+| LOGICAL_DDL_PARALLELISM | No | 1 | [1-10240] | Configure the concurrency of logical DDL execution, setting it to 1 means to execute DDL tasks serially |
+| ENABLE_BROADCAST_RANDOM_READ | No | TRUE | [TRUE/FALSE] | Whether to enable broadcast table random read optimization |
 
 
 

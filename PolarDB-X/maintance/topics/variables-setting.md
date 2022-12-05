@@ -1,6 +1,6 @@
-参数设置
+parameter settings
 =======================
 
-* [计算节点参数](cn-variables.md)
-* [存储节点参数](dn-variables.md)
-* [参数设置](set-parameters.md)
+* [Compute node parameters](cn-variables.md)
+* [Storage node parameters](dn-variables.md)
+* [Parameter Settings](set-parameters.md)

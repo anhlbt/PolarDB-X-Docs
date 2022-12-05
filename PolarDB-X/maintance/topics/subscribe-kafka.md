@@ -1,56 +1,56 @@
-# 使用Kafka订阅PolarDB-X CDC
+# Use Kafka to subscribe to PolarDB-X CDC
 
-本小节介绍如何通过Canal订阅PolarDB-X增量数据，投递至Kafka进行消费。
+This section describes how to subscribe to PolarDB-X incremental data through Canal and deliver it to Kafka for consumption.
 
-## 演示环境说明
+## Demonstration environment description
 
-建议通过MacOS或者Linux机器来进行操作。
+It is recommended to operate on a MacOS or Linux machine.
 
-**环境版本说明：**
+**Environment Release Notes:**
 
-| 实例      | 版本说明 | 官方网站                                  |
+| Example | Release Notes | Official Website |
 | :-------- | :------- | :---------------------------------------- |
 | PolarDB-X | 2.0.1    | [PolarDB-X](https://polardbx.com/)        |
 | Kafka     | 2.13     | [Kafka](https://kafka.apache.org/)        |
 | Canal     | 1.1.5    | [Canal](https://github.com/alibaba/canal) |
 
-## 准备PolarDB-X
+## Prepare PolarDB-X
 
-如果您已经安装了Docker，请执行以下脚本完成单机版PolarDB-X的安装，该过程大概需要1-2分钟。
+If you have already installed Docker, please execute the following script to complete the installation of the stand-alone version of PolarDB-X, which takes about 1-2 minutes.
 
 ```bash
-# 获取PolarDB-X镜像
+# Get PolarDB-X image
 docker pull polardbx/polardb-x:2.0.1
 
-# 启动PolarDB-X, 并暴露8527端口, 这里可能需要1-2分钟
+# Start PolarDB-X, and expose port 8527, it may take 1-2 minutes
 docker run -d --name polardbx-play -p 8527:8527 polardbx/polardb-x
 
-# 通过MySQL客户端验证启动
+# Start with MySQL client authentication
 mysql -h127.1 -P8527 -upolardbx_root -p"123456"
 ```
 
-> **注意**：PolarDB-X集群部署方式有PXD、Kubernetes等，详情请参见[快速入门](../../quickstart/topics/Quick-Start.md)。
+> **Note**: PolarDB-X cluster deployment methods include PXD, Kubernetes, etc. For details, please refer to [Quick Start](../../quickstart/topics/Quick-Start.md).
 
-## 准备数据
+## Prepare data
 
 ```sql
 mysql -h127.1 -P8527 -upolardbx_root -p"123456"
 
--- 创建测试库
+-- Create a test repository
 create database canal;
 
 use canal;
 
--- 创建测试表
+-- create test table
 create table `trades` (
-  id integer auto_increment NOT NULL,
-  shop_id integer comment '店铺id',
-  pay_amount decimal  comment '支付金额', 
-  stat_date date comment '统计时间',
-  primary key(id)
+id integer auto_increment NOT NULL,
+shop_id integer comment 'shop id',
+pay_amount decimal comment 'payment amount',
+stat_date date comment 'statistical time',
+primary key(id)
 );
 
--- 写入数据
+-- data input
 insert trades values(default, 1001, 10, '2022-03-15');
 insert trades values(default, 1001, 10, '2022-03-15');
 insert trades values(default, 1001, 10, '2022-03-15');
@@ -58,135 +58,135 @@ insert trades values(default, 1001, 10, '2022-03-15');
 insert trades values(default, 1001, 10, '2022-03-15');
 ```
 
-## 准备Kafka
+## Prepare Kafka
 
-下载最新的[Kafka安装包](https://www.apache.org/dyn/closer.cgi?path=/kafka/3.1.0/kafka_2.13-3.1.0.tgz)并解压。启动ZooKeeper和Kafka，等待Kafka服务器启动完成。
+Download the latest [Kafka installation package](https://www.apache.org/dyn/closer.cgi?path=/kafka/3.1.0/kafka_2.13-3.1.0.tgz) and unzip it. Start ZooKeeper and Kafka, and wait for the Kafka server to start.
 
 ```bash
-# 解压
+# unzip
 tar -xzf kafka_2.13-3.1.0.tgz
 cd kafka_2.13-3.1.0
 
-# 启动ZooKeeper
+# Start ZooKeeper
 bin/zookeeper-server-start.sh config/zookeeper.properties
 
-# 启动Kafka
+# start Kafka
 bin/kafka-server-start.sh config/server.properties
 ```
 
-## 准备Canal
+## Prepare Canal
 
-#### 下载并安装Canal
+#### Download and install Canal
 
-下载最新的[Canal安装包](https://github.com/alibaba/canal/releases)。
+Download the latest [Canal installation package](https://github.com/alibaba/canal/releases).
 
 ```bash
-# 下载
+# download
 wget https://github.com/alibaba/canal/releases/download/canal-1.1.5/canal.deployer-1.1.5.tar.gz
 
-# 解压
+# unzip
 tar -xzf canal.deployer-1.1.5.tar.gz
 ```
 
-#### 修改配置文件
+#### Modify the configuration file
 
-Canal的官方配置文件有很多配置项，其中需要改动配置如下：
+Canal's official configuration file has many configuration items, among which the configuration needs to be changed as follows:
 
-1. 编辑`vi conf/canal/canal.properties`，用于探测Canal实例配置：
+1. Edit `vi conf/canal/canal.properties` to detect Canal instance configuration:
 
 ```bash
-canal.instance.tsdb.enable = false 
+canal.instance.tsdb.enable = false
 canal.destinations = example
 canal.conf.dir = ../conf
-# 配置Kafka连接信息
+# Configure Kafka connection information
 kafka.bootstrap.servers = 127.0.0.1:9092
 ```
 
 
-2. 编辑`vi conf/example/instance.properties`，订阅PolarDB-X增量Binlog，并写入Kafka：
+2. Edit `vi conf/example/instance.properties`, subscribe to PolarDB-X incremental Binlog, and write to Kafka:
 
 ```bash
-# 配置Canal源为PolarDB-X的连接信息，用于订阅PolarDB-X的Binlog
+# Configure the Canal source as the connection information of PolarDB-X, which is used to subscribe to the Binlog of PolarDB-X
 canal.instance.tsdb.enable=false
 canal.instance.master.address=127.0.0.1:8527
 canal.instance.dbUsername=polardbx
 canal.instance.dbPassword=123456
-   
-# 定义写入Kafka的topic
+
+# Define the topic written to Kafka
 canal.mq.topic=example
 ```
 
 
-#### 启动Canal
+#### Start Canal
 
 ```shell
-# 启动Canal
+# start Canal
 ./bin/startup.sh
 
-# 查看Canal日志
+# View Canal logs
 tail -f logs/canal/canal.log
 
-# 查看Canal instance日志
+# View Canal instance logs
 tail -f logs/example/example.log
 ```
 
-> **说明**：如果收到如下图所示的警告信息，可以忽略，不影响正常运行。
+> **Note**: If you receive a warning message as shown in the figure below, you can ignore it and it will not affect the normal operation.
 >
 > ![Canal Warning](../images/screenshot_canal_warning.png)
 
-## 消费Kafka Topic
+## Consume Kafka Topic
 
-### Kafka Consumer消费Topic
+### Kafka Consumer Consumption Topic
 
 ```bash
-# 订阅topic为”example“的消息
+# Subscribe to messages with topic "example"
 bin/kafka-console-consumer.sh --topic example --from-beginning --bootstrap-server localhost:9092
 ```
 
-**再次写入一些数据：**
+**Write some data again:**
 
 ```sql
--- 登录PolarDB-X
+-- Log in to PolarDB-X
 mysql -h127.1 -P8527 -upolardbx_root -p"123456"
 
 insert trades values(default, 1001, 10, '2022-03-15');
 ```
 
-### Kafka消息的数据结构示例
+### Data structure example of Kafka message
 
 ```json
 {
-  "data":[
-    {
-      "id":"100008",
-      "shop_id":"1001",
-      "pay_amount":"10",
-      "stat_date":"2022-03-15"
-    }
-  ],
-  "database":"canal",
-  "es":1647950609000,
-  "id":4,
-  "isDdl":false,
-  "mysqlType":{
-    "id":"int(11)",
-    "shop_id":"int(11)",
-    "pay_amount":"decimal(10,0)",
-    "stat_date":"date"
-  },
-  "old":null, 
-  "pkNames":[
-    "id"
-  ],
-  "sql":"",
-  "sqlType":{
-    "id":4,
-    "shop_id":4,
-    "pay_amount":3,
-    "stat_date":91
-  },
-  "table":"trades",
-  "ts":1647950609988,
-  "type":"INSERT"
+"data":[
+{
+"id":"100008",
+"shop_id":"1001",
+"pay_amount":"10",
+"stat_date":"2022-03-15"
+}
+],
+"database":"canal",
+"es":1647950609000,
+"id":4,
+"isDdl":false,
+"mysqlType":{
+"id":"int(11)",
+"shop_id":"int(11)",
+"pay_amount":"decimal(10,0)",
+"stat_date":"date"
+},
+"old":null,
+"pkNames":[
+"id"
+],
+"sql":"",
+"sqlType":{
+"id":4,
+"shop_id":4,
+"pay_amount":3,
+"stat_date":91
+},
+"table":"trades",
+"ts":1647950609988,
+"type":"INSERT"
 }
 ```

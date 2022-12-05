@@ -1,78 +1,78 @@
-功能介绍（WIP）
+Function Introduction (WIP)
 =========================
 
-PolarDB-X新增三权分立模式，您可以将高权限账号拥有的权限分给系统管理员、安全管理员和审计管理员这3个角色，避免因权限高度集中带来的风险，增强数据库的安全性。
+PolarDB-X has newly added the separation of three rights mode. You can assign the rights of high-privilege accounts to the three roles of system administrator, security administrator, and audit administrator to avoid risks caused by highly concentrated permissions and enhance database security. safety.
 
-风险与解决方案 
+Risks and Solutions
 ----------------------------
 
-* **风险**
+* **Risk**
 
-  传统数据库运维模式下，数据库管理员DBA（Database Administrator）拥有的权限过高且集中，容易在某些场景下给业务带来风险：
-  * DBA误判导致系统安全事故。
-  
-  * DBA出于某种目的进行非法操作。
-  
-  * DBA、第三方外包人员或程序开发人员越权访问敏感信息。
-  
-  
-  
-  
-  
-* **解决方案**
+In the traditional database operation and maintenance mode, the authority of the database administrator DBA (Database Administrator) is too high and centralized, and it is easy to bring risks to the business in certain scenarios:
+* DBA misjudgments lead to system security incidents.
 
-  PolarDB-X新增支持三权分立模式，改进传统数据库运维由DBA行使特权的独立控制体系，使得数据库管理员DBA、安全管理员DSA（Department Security Administrator）和审计管理员DAA（Data Audit Administrator）3者的权责更加清晰。其中：
-  * 数据库管理员（DBA）：只具备DDL（Data Definition Language）权限。
-  
-  * 安全管理员（DSA）：只具备管理角色（Role）或用户（User）以及为其他账号授予权限的权限。
-  
-  * 审计管理员（DAA）：只具备查看审计日志的权限。
-  
-  
-  
+* DBA conducts illegal operations for some purpose.
+
+* DBAs, third-party outsourcers or program developers have unauthorized access to sensitive information.
 
 
 
 
-数据库系统账号的权限对比 
+
+* **solution**
+
+PolarDB-X newly supports the separation of three rights model, improving the independent control system in which DBAs exercise privileges in traditional database operation and maintenance, enabling database administrators DBA, security administrators DSA (Department Security Administrator) and audit administrators DAA (Data Audit Administrator) The rights and responsibilities of the three parties are more clearly defined. in:
+* Database administrator (DBA): only have DDL (Data Definition Language) authority.
+
+* Security administrator (DSA): only has the authority to manage roles (Role) or users (User) and grant permissions to other accounts.
+
+* Audit Administrator (DAA): only has the authority to view audit logs.
+
+
+
+
+
+
+
+Comparison of permissions of database system accounts
 ---------------------------------
 
-下表展示了在默认模式和三权分立模式下，不同数据库系统账号的权限对比。
+The following table shows the comparison of permissions of different database system accounts in the default mode and the separation of powers mode.
 
-**说明**
+**illustrate**
 
-* 默认模式下的高权限账号即系统管理员账号。更多关于高权限账号的详情，请参见[账号类型](https://help.aliyun.com/document_detail/172163.htm#title-1px-w9q-n64)。
+* The high-privilege account in the default mode is the system administrator account. For more details about high-privilege accounts, please refer to [Account Type](https://help.aliyun.com/document_detail/172163.htm#title-1px-w9q-n64).
 
-* 开启或关闭三权分立模式，仅对系统账号（即高权限账号、系统管理员账号、安全管理员账号和审计管理员账号）的权限有影响，普通账号权限不受模式变更的影响。
+* Turning on or off the separation of powers mode only affects the permissions of the system account (that is, the high-privilege account, the system administrator account, the security administrator account, and the audit administrator account), and the normal account permissions are not affected by the mode change.
 
-* 三权分立模式下，虽然所有系统账号均不具备DML（Data Manipulation Language）、DQL（Data Query Language）或DAL（Data Administration Language）权限，但安全管理员仍然能够将这些权限授予给普通账号。
+* In the separation of powers mode, although all system accounts do not have DML (Data Manipulation Language), DQL (Data Query Language) or DAL (Data Administration Language) permissions, the security administrator can still grant these permissions to ordinary accounts.
 
-* 表中✔️表示具备该权限，❌表示不具备该权限。
+* ✔️ in the table means that you have the permission, and ❌ means you don’t have the permission.
 
 
-| 权限分类    |                                                                                                                                                                                                                                       说明                                                                                                                                                                                                                                        | 默认模式（高权限账号） | 三权分立模式（系统管理员账号） | 三权分立模式（安全管理员账号） | 三权分立模式（审计管理员账号） |
+| Permission classification | Description | Default mode (high-privilege account) | Three-power separation mode (system administrator account) | Three-power separation mode (security administrator account) | Three-power separation mode (audit administrator account) |
 |---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------|---------|---------|---------|
 | DDL     | * ALTER TABLE  <br />* CREATE TABLE  <br />* CREATE VIEW  <br />* CREATE INDEX  <br />* CREATE CCL_RULE  <br />* DROP VIEW  <br />* DROP INDEX  <br />* DROP TABLE  <br />* TRUNCATE TABLE | ✔️    | ✔️      | ❌       | ❌       |
 | DML     | * DELETE  <br />* UPDATE  <br />* INSERT                                                                                                                                                                                                                                                                                                                 | ✔️    | ❌       | ❌       | ❌       |
 | DQL     | * SELECT  <br />* EXPLAIN                                                                                                                                                                                                                                                                                                                                                                  | ✔️    | ❌       | ❌       | ❌       |
 | DAL     | * SHOW CCL_RULE  <br />* SHOW INDEX                                                                                                                                                                                                                                                                                                                                                        | ✔️    | ❌       | ❌       | ❌       |
-| 账号或角色相关 | [账号权限管理](account.md)<br />[角色权限管理](role.md)                                                                                                                                                                                                                                                                                                                                            | ✔️    | ❌       | ✔️      | ❌       |
-| 查看审计日志  | 查看如下两张表中的审计日志信息： <br />* `information_schema.polardbx_audit_log`  <br />* `information_schema.polardbx_ddl_log`                                                                                                                                                                                                                                                                    | ✔️    | ❌       | ❌       | ✔️      |
+| Account or role-related | [Account Authority Management](account.md)<br />[Role Authority Management](role.md) | ✔️ | ❌ | ✔️ | ❌ |
+| View audit log | View audit log information in the following two tables: <br />* `information_schema.polardbx_audit_log` <br />* `information_schema.polardbx_ddl_log` | ✔️ | ❌ | ❌ | ✔️ |
 
 
 
-使用限制 
+usage restrictions
 -------------------------
 
-三权分立模式下的系统账号（包括系统管理员账号、安全管理员账号和审计管理员账号）存在如下限制：
+System accounts (including system administrator accounts, security administrator accounts, and audit administrator accounts) under the separation of powers mode have the following restrictions:
 
-* 不支持对系统账号执行GRANT ROLE或REVOKE ROLE命令。
+* The GRANT ROLE or REVOKE ROLE commands for system accounts are not supported.
 
-* 不支持对系统账号执行GRANT PRIVILEGES 或REVOKE PRIVILEGES命令。
+* The GRANT PRIVILEGES or REVOKE PRIVILEGES commands for system accounts are not supported.
 
-* 系统账号的密码只能由对应的账号修改，如系统管理员账号的密码仅能由系统管理员账号修改，不能被其他帐号修改。
+* The password of the system account can only be modified by the corresponding account. For example, the password of the system administrator account can only be modified by the system administrator account, and cannot be modified by other accounts.
 
-* 系统账号均不支持SET DEFAULT ROLE命令。
+* System accounts do not support the SET DEFAULT ROLE command.
 
 
 

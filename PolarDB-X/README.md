@@ -1,5 +1,5 @@
-# 关于PolarDB-X
+# About PolarDB-X
 
-* [PolarDB-X简介](Introduction.md)
-* [产品架构](architecture.md)
-* [核心特性](features/topics/core-features.md)
+* [Introduction to PolarDB-X](Introduction.md)
+* [Product Architecture](architecture.md)
+* [Core Features](features/topics/core-features.md)

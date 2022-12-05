@@ -1,20 +1,20 @@
-# 快速入门
+# Quick start
 
-PolarDB-X 根据场景提供三种不同的部署方式。
+PolarDB-X provides three different deployment methods according to scenarios.
 
-## 通过PXD部署本地实例
+## Deploy a local instance via PXD
 
-PolarDB-X 支持通过 PXD 工具在本地一键创建实例，通过该方式可快速体验 PolarDB-X 的相关功能。
-PXD 使用说明参考[这里](quickstart.md)。
+PolarDB-X supports local one-click creation of instances through the PXD tool, through which you can quickly experience the relevant functions of PolarDB-X.
+PXD usage instructions refer to [here](quickstart.md).
 
-## 通过Kubernetes部署集群
+## Deploy the cluster through Kubernetes
 
-PolarDB-X 提供 Kubernetes 部署模式，通过该方式，可对 PolarDB-X 集群做更多定制化配置。Kubernetes 部署教程参考[这里](quickstart-k8s.md) 。
+PolarDB-X provides a Kubernetes deployment mode, through which more customized configurations can be made to the PolarDB-X cluster. Kubernetes deployment tutorial reference [here](quickstart-k8s.md).
 
-## 通过编译源码安装部署
+## Install and deploy by compiling source code
 
-[PolarDB-X 仓库地址](https://github.com/apsaradb/galaxysql) 。
+[PolarDB-X warehouse address](https://github.com/apsaradb/galaxysql).
 
-如果想从源码编译安装 PolarDB-X，可参考[这里](quickstart-development.md)。
+If you want to compile and install PolarDB-X from source code, please refer to [here](quickstart-development.md).
 
-如果对 PolarDB-X 的设计原理感兴趣，可关注我们的[知乎专栏](https://www.zhihu.com/org/polardb-x) 。
+If you are interested in the design principles of PolarDB-X, you can follow our [Knowledge Column](https://www.zhihu.com/org/polardb-x).

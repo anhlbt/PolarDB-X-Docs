@@ -1,119 +1,119 @@
-# 通过编译源码安装部署
+# Install and deploy by compiling source code
 
-普通开发者通常使用CentOS等操作系统进行开发。本文档对如何从零开始参与PolarDB-X开发的流程进行了说明，覆盖代码编译、数据库安装、部署等流程。
+Ordinary developers usually use operating systems such as CentOS for development. This document explains how to participate in the process of PolarDB-X development from scratch, covering code compilation, database installation, deployment and other processes.
 
-> **备注**：本文档主要针对CentOS7和Ubuntu20操作系统，其他Linux发行版原理类似。
+> **Remarks**: This document is mainly for CentOS7 and Ubuntu20 operating systems, and the principles of other Linux distributions are similar.
 
-## 准备工作
+## Preparation
 
-- 下载 [GalaxyEngine](https://github.com/ApsaraDB/galaxyengine) 代码，main分支
-- 下载 [GalaxySQL](https://github.com/ApsaraDB/galaxysql) 代码，main分支
-- 下载 [GalaxyGlue](https://github.com/ApsaraDB/galaxyglue) 代码，main分支
-- 下载 [GalaxyCDC](https://github.com/ApsaraDB/galaxycdc) 代码，main分支
+- Download [GalaxyEngine](https://github.com/ApsaraDB/galaxyengine) code, main branch
+- Download [GalaxySQL](https://github.com/ApsaraDB/galaxysql) code, main branch
+- Download [GalaxyGlue](https://github.com/ApsaraDB/galaxyglue) code, main branch
+- Download [GalaxyCDC](https://github.com/ApsaraDB/galaxycdc) code, main branch
 
-## 编译 PolarDB-X DN (存储节点，代号GalaxyEngine)
+## Compile PolarDB-X DN (storage node, code name GalaxyEngine)
 
-此步骤编译和安装GalaxyEngine（mysql）
+This step compiles and installs GalaxyEngine (mysql)
 
-**安装依赖（CentOS7)**
+**Installation dependencies (CentOS7)**
 
 ```bash
 yum install cmake3
 ln -s /usr/bin/cmake3 /usr/bin/cmake
 
 
-# 安装GCC7
+# install GCC7
 yum install centos-release-scl
 yum install devtoolset-7-gcc devtoolset-7-gcc-c++ devtoolset-7-binutils
 echo "source /opt/rh/devtoolset-7/enable" >>/etc/profile
 
-# 安装依赖
+# install dependencies
 yum install make automake git openssl-devel ncurses-devel bison libaio-devel
 ```
 
-**安装依赖（Ubuntu20）**
+**Installation dependencies (Ubuntu20)**
 
 ```bash
-# 安装GCC7
+# install GCC7
 apt install -y gcc-7 g++-7
 update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-7 60 \
-                         --slave /usr/bin/g++ g++ /usr/bin/g++-7 
+--slave /usr/bin/g++ g++ /usr/bin/g++-7
 update-alternatives --config gcc
 gcc --version
 g++ --version
 
-# 安装依赖
+# install dependencies
 apt install make automake cmake git bison libaio-dev libncurses-dev libsasl2-dev libldap2-dev libssl-dev pkg-config
 ```
 
-**编译**
+**compile**
 
 ```bash
-# 进入 galaxyengine 代码路径
+# Enter the galaxyengine code path
 cd galaxyengine
 
-# 安装boost1.70 (注：把boost放到仓库里避免下载）
+# Install boost1.70 (note: put boost in the warehouse to avoid downloading)
 wget https://boostorg.jfrog.io/artifactory/main/release/1.70.0/source/boost_1_70_0.tar.gz
 mkdir extra/boost
 cp boost_1_70_0.tar.gz extra/boost/
 
-# 编译安装
-# 详细参数请参考 https://dev.mysql.com/doc/refman/8.0/en/source-configuration-options.html
+# compile and install
+# For detailed parameters, please refer to https://dev.mysql.com/doc/refman/8.0/en/source-configuration-options.html
 cmake .                                 \
-    -DFORCE_INSOURCE_BUILD=ON           \
-    -DCMAKE_BUILD_TYPE="Debug"          \
-    -DSYSCONFDIR="/u01/mysql"           \
-    -DCMAKE_INSTALL_PREFIX="/u01/mysql" \
-    -DMYSQL_DATADIR="/u01/mysql/data"   \
-    -DMYSQL_MAINTAINER_MODE=0           \
-    -DWITH_SSL=openssl                  \
-    -DWITH_BOOST="./extra/boost/boost_1_70_0.tar.gz"
+-DFORCE_INSOURCE_BUILD=ON           \
+-DCMAKE_BUILD_TYPE="Debug"          \
+-DSYSCONFDIR="/u01/mysql"           \
+-DCMAKE_INSTALL_PREFIX="/u01/mysql" \
+-DMYSQL_DATADIR="/u01/mysql/data"   \
+-DMYSQL_MAINTAINER_MODE=0           \
+-DWITH_SSL=openssl                  \
+-DWITH_BOOST="./extra/boost/boost_1_70_0.tar.gz"
 make -j8
 make install
 ```
 
 
-## 编译 PolarDB-X CN (计算节点，代号GalaxySQL)
-此步骤编译和安装galaxysql & galaxyglue代码。
+## Compile PolarDB-X CN (compute node, code name GalaxySQL)
+This step compiles and installs the galaxysql & galaxyglue code.
 ```yaml
-# 安装依赖 JDK 1.8 和 Maven 3
+# Installation depends on JDK 1.8 and Maven 3
 
-# 进入代码目录 
+# Enter the code directory
 cd galaxysql/
 
-# 确保 polardbx-rpc 子模块 (GalaxyGlue) 已初始化
+# Make sure the polardbx-rpc submodule (GalaxyGlue) is initialized
 git submodule update --init
 
-# 编译打包
-mvn install -D maven.test.skip=true -D env=release 
+# Compile and package
+mvn install -D maven.test.skip=true -D env=release
 
-# 解压运行
+# Unzip and run
 tar zxvf target/polardbx-server-5.4.12-SNAPSHOT.tar.gz
 ```
 
-## 编译 PolarDB-X CDC（日志节点，代号GalaxyCDC）
-此步骤编译和安装 galaxycdc 代码。
+## Compile PolarDB-X CDC (log node, code name GalaxyCDC)
+This step compiles and installs the galaxycdc code.
 ```yaml
-# 进入CDC代码
+# Enter the CDC code
 
-# 编译打包
-mvn install -D maven.test.skip=true -D env=release 
+# Compile and package
+mvn install -D maven.test.skip=true -D env=release
 
-# 包在/polardbx-cdc-assemble/target/
+# package in /polardbx-cdc-assemble/target/
 
-# 解压运行
+# Unzip and run
 tar zxvf polardbx-binlog.tar.gz
 ```
 
-## 启动PolarDB-X DN
+## Start PolarDB-X DN
 
-- 此步骤启动一个mysql进程，作为metadb和dn
-- 参考附录中的mysql配置文件（my.cnf），可进行相应修改，默认使用 4886 作为 mysql端口，32886 作为私有协议端口
-- 默认使用 /u01/my3306 作为mysql数据目录，可以修改成其他目录
-  
-> 注意：启动 DN 需要使用非 root 账号完成
+- This step starts a mysql process as metadb and dn
+- Refer to the mysql configuration file (my.cnf) in the appendix, and modify accordingly. By default, 4886 is used as the mysql port, and 32886 is used as the private protocol port
+- By default, /u01/my3306 is used as the mysql data directory, which can be modified to other directories
 
-启动mysql：
+> Note: Starting DN needs to be done with a non-root account
+
+Start mysql:
 ```yaml
 mkdir -p /u01/my3306/{data,log,run,tmp,mysql}
 /u01/mysql/bin/mysqld --defaults-file=my.cnf --initialize-insecure
@@ -121,100 +121,100 @@ mkdir -p /u01/my3306/{data,log,run,tmp,mysql}
 ```
 
 
-## 启动PolarDB-X CN
-启动mysql进程之后，便可以初始化PolarDB-X，需要准备以下几个配置：
+## Start PolarDB-X CN
+After starting the mysql process, PolarDB-X can be initialized, and the following configurations need to be prepared:
 
-- metadb user：以下采用`my_polarx`
-- metadb database：创建metadb库，以下采用 `polardbx_meta_db_polardbx`
-- 密码加密key（dnPasswordKey)：以下采用 `asdf1234ghjk5678`
-- PolarDB-X默认用户名：默认为 `polarx_root`
-- PolarDB-X默认用户密码：默认为 `123456`，可通过 `-S` 参数修改
+- metadb user: The following uses `my_polarx`
+- metadb database: Create a metadb library, the following uses `polardbx_meta_db_polardbx`
+- Password encryption key (dnPasswordKey): `asdf1234ghjk5678` is used below
+- PolarDB-X default username: defaults to `polarx_root`
+- PolarDB-X default user password: the default is `123456`, which can be modified by the `-S` parameter
 
-> 注意：启动 CN 需要使用非 root 账号完成
+> Note: Starting CN needs to be done with a non-root account
 
-修改配置文件 conf/server.properties，逐个替换以下配置项：
+Modify the configuration file conf/server.properties, and replace the following configuration items one by one:
 ```basic
-# PolarDB-X 服务端口
+# PolarDB-X service port
 serverPort=8527
-# PolarDB-X RPC 端口
+# PolarDB-X RPC port
 rpcPort=9090
-# MetaDB地址
+# MetaDB address
 metaDbAddr=127.0.0.1:4886
-# MetaDB私有协议端口
+# MetaDB private protocol port
 metaDbXprotoPort=32886
-# MetaDB用户
+# MetaDB user
 metaDbUser=my_polarx
 metaDbName=polardbx_meta_db_polardbx
-# PolarDB-X实例名
+# PolarDB-X instance name
 instanceId=polardbx-polardbx
 ```
 
 
-初始化PolarDB-X：
+Initialize PolarDB-X:
 
-- -I: 进入初始化模式
-- -P: 之前准备的dnPasswordKey
-- -d: DataNode的地址列表，单机模式下就是之前启动的mysql进程的端口和地址
-- -r: 连接metadb的密码
-- -u: 为PolarDB-X创建的根用户
-- -S: 为PolarDB-X创建的根用户密码
+- -I: Enter initialization mode
+- -P: previously prepared dnPasswordKey
+- -d: DataNode address list, in stand-alone mode is the port and address of the previously started mysql process
+- -r: password to connect to metadb
+- -u: root user created for PolarDB-X
+- -S: root user password created for PolarDB-X
 
 ```sql
 bin/startup.sh \
-    -I \
-    -P asdf1234ghjk5678 \
-    -d 127.0.0.1:4886:32886 \
-    -r "" \
-    -u polardbx_root \
-    -S "123456"
+-I \
+-P asdf1234ghjk5678 \
+-d 127.0.0.1:4886:32886 \
+-r "" \
+-u polardbx_root \
+-S "123456"
 ```
 
-此步骤中会生成内部密码及加密密码，需要将其填写配置文件 conf/server.properties 中，用于后续访问:
+In this step, an internal password and an encrypted password will be generated, which need to be filled in the configuration file conf/server.properties for subsequent access:
 ```sql
 Generate password for user: my_polarx && M8%V5%K9^$5%oY0%yC0+&1!J7@8+R6)
 Encrypted password: DB84u4UkU/OYlMzu3aj9NFdknvxYgedFiW9z59bVnoc=
 Root user for polarx with password: polardbx_root && 123456
 Encrypted password for polarx: H1AzXc2NmCs61dNjH5nMvA==
-======== Paste following configurations to conf/server.properties ! ======= 
-metaDbPasswd=HMqvkvXZtT7XedA6t2IWY8+D7fJWIJir/mIY1Nf1b58=
+======== Paste following configurations to conf/server.properties ! =======
+black oscillator =
 ```
 
 
-最后一步，启动PolarDB-X：
+The last step, start PolarDB-X:
 ```yaml
-bin/startup.sh -P asdf1234ghjk5678 
+bin/startup.sh -P asdf1234ghjk5678
 ```
 
 
-连接PolarDB-X验证，如果能连上，说明数据库启动成功啦，可以愉快地运行各种SQL啦：
+Connect to PolarDB-X for verification. If it can be connected, it means that the database has started successfully, and you can happily run various SQL:
 ```sql
 mysql -h127.1 -P8527 -upolardbx_root
 ```
 
 
-## 启动PolarDB-X CDC
-启动PolarDB-X进程之后，便可以初始化PolarDB-X CDC组件，需要准备以下几个配置：
+## Start PolarDB-X CDC
+After the PolarDB-X process is started, the PolarDB-X CDC component can be initialized, and the following configurations need to be prepared:
 
-- metadb user：和启动PolarDB-X时设置的值保持一致，以下采用`my_polarx`
-- metadb database：和启动PolarDB-X时设置的值保持一致，以下采用 `polardbx_meta_db_polardbx`
-- metadb password：和启动PolarDB-X时设置的值保持一致，需使用密文，以下采用`HMqvkvXZtT7XedA6t2IWY8+D7fJWIJir/mIY1Nf1b58=`
-- metadb port：和启动MySQL时设置的值保持一致，以下采用 `4886`
-- 密码加密key（dnPasswordKey)：和启动PolarDB-X时设置的值保持一致，以下采用 `asdf1234ghjk5678`
-- PolarDB-X用户名：和启动PolarDB-X时设置的值保持一致，以下采用默认值 `polardbx_root`
-- PolarDB-X用户密码：和启动PolarDB-X时设置的值保持一致，需使用密文，以下采用默认值`H1AzXc2NmCs61dNjH5nMvA==`
-- PolarDB-X端口：和启动PolarDB-X时设置的值保持一致，以下采用默认值 `8527`
-- 当前机器分配给CDC使用的内存大小：以下采用16000代指，单位为M，实际配置值请替换为真实值
+- metadb user: It is consistent with the value set when starting PolarDB-X, the following uses `my_polarx`
+- metadb database: Consistent with the value set when starting PolarDB-X, the following uses `polardbx_meta_db_polardbx`
+- metadb password: It is consistent with the value set when PolarDB-X is started, and ciphertext is required. The following uses `HMqvkvXZtT7XedA6t2IWY8+D7fJWIJir/mIY1Nf1b58=`
+- metadb port: It is consistent with the value set when starting MySQL, the following uses `4886`
+- Password encryption key (dnPasswordKey): consistent with the value set when starting PolarDB-X, the following uses `asdf1234ghjk5678`
+- PolarDB-X username: It is consistent with the value set when starting PolarDB-X, and the default value `polardbx_root` is used below
+- PolarDB-X user password: It is consistent with the value set when starting PolarDB-X, and ciphertext is required. The default value `H1AzXc2NmCs61dNjH5nMvA==` is used below
+- PolarDB-X port: It is consistent with the value set when starting PolarDB-X, and the default value `8527` is used below
+- The memory size allocated to CDC by the current machine: 16000 is used below, and the unit is M. Please replace the actual configuration value with the real value
 
-> 注意：启动 CDC 需要使用非 root 账号完成
+> Note: Starting CDC needs to be done with a non-root account
 
-修改配置文件 conf/config.properties，将如下示例中的${HOME}替换为当前用户的根目录，如/home/mysql
+Modify the configuration file conf/config.properties, and replace ${HOME} in the following example with the root directory of the current user, such as /home/mysql
 ```shell
 useEncryptedPassword=true
 polardbx.instance.id=polardbx-polardbx
 mem_size=16000
 metaDb_url=jdbc:mysql://127.0.0.1:4886/polardbx_meta_db_polardbx?useSSL=false
 metaDb_username=my_polarx
-metaDbPasswd=HMqvkvXZtT7XedA6t2IWY8+D7fJWIJir/mIY1Nf1b58=
+black oscillator =
 polarx_url=jdbc:mysql://127.0.0.1:8527/__cdc__
 polarx_username=polardbx_root
 polarx_password=H1AzXc2NmCs61dNjH5nMvA==
@@ -222,14 +222,14 @@ dnPasswordKey=asdf1234ghjk5678
 storage.persistBasePath=${HOME}/logs/rocksdb
 binlog.dir.path=${HOME}/binlog/
 ```
-接下来，即可启动CDC daemon进程，命令如下所示。启动之后，通过jps命令查看进程状态，CDC会有3个附属进程，分别是DaemonBootStrap、TaskBootStrap和DumperBootStrap，CDC的系统日志会输出到${HOME}/logs目录下，全局binlog日志会输出到binlog.dir.path参数配置的目录下，TaskBootStrap进程和DumperBootStrap进程被kill后，会被Daemon进程自动拉起。
+Next, you can start the CDC daemon process, the command is as follows. After startup, use the jps command to view the process status. CDC will have 3 subsidiary processes, namely DaemonBootStrap, TaskBootStrap and DumperBootStrap. The system log of CDC will be output to the ${HOME}/logs directory, and the global binlog log will be output to binlog. In the directory configured by the dir.path parameter, after the TaskBootStrap process and DumperBootStrap process are killed, they will be automatically pulled up by the Daemon process.
 ```shell
 bin/daemon.sh start
 ```
-登录PolarDB-X，执行一些DDL或DML操作，然后执行show binary logs 和show binlog events命令，验证全局binlog的生成状态，enjoy it！
+Log in to PolarDB-X, perform some DDL or DML operations, and then execute the show binary logs and show binlog events commands to verify the generation status of the global binlog, enjoy it!
 
-## 附录
-### mysql配置文件
+## Appendix
+### mysql configuration file
 ```yaml
 [mysqld]
 socket = /u01/my3306/run/mysql.sock
@@ -359,7 +359,7 @@ binlog_transaction_dependency_tracking = WRITESET
 transaction_write_set_extraction = XXHASH64
 
 
-#gtid
+#got
 gtid_mode=OFF
 enforce_gtid_consistency=OFF
 
